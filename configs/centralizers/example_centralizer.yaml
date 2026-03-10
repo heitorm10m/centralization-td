@@ -1,0 +1,9 @@
+name: example-centralizers
+centralizers:
+  - name: bow-spring-01
+    outer_diameter_m: 0.216
+    start_md_m: 900.0
+    spacing_m: 30.0
+    count: 12
+    type: bow-spring
+

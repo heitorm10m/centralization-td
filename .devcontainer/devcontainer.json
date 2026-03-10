@@ -1,0 +1,22 @@
+{
+  "name": "centraltd",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.black-formatter"
+      ]
+    }
+  },
+  "postCreateCommand": "python3 -m pip install --upgrade pip && python3 -m pip install -e python[dev]",
+  "remoteUser": "vscode"
+}
+

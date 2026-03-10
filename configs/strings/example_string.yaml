@@ -1,0 +1,15 @@
+name: example-string
+sections:
+  - name: 5-1/2in-drill-pipe
+    length_m: 1200.0
+    outer_diameter_m: 0.1397
+    inner_diameter_m: 0.1086
+    unit_weight_n_per_m: 330.0
+    grade: S-135
+  - name: heavy-weight-drill-pipe
+    length_m: 300.0
+    outer_diameter_m: 0.1778
+    inner_diameter_m: 0.0762
+    unit_weight_n_per_m: 550.0
+    grade: S-135
+

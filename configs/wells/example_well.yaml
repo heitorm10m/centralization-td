@@ -1,0 +1,21 @@
+name: example-well
+trajectory:
+  - measured_depth_m: 0.0
+    inclination_rad: 0.0
+    azimuth_rad: 0.0
+    tvd_m: 0.0
+    northing_m: 0.0
+    easting_m: 0.0
+  - measured_depth_m: 500.0
+    inclination_rad: 0.174533
+    azimuth_rad: 0.0
+    tvd_m: 492.4
+    northing_m: 86.8
+    easting_m: 0.0
+  - measured_depth_m: 1500.0
+    inclination_rad: 0.523599
+    azimuth_rad: 0.785398
+    tvd_m: 1350.0
+    northing_m: 430.0
+    easting_m: 430.0
+
