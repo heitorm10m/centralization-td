@@ -10,13 +10,20 @@
 
 ## Phase 2
 
-- Stiff-string representation for tubular mechanics
-- Contact detection along the well trajectory
-- Initial standoff estimation
-- Verification cases for geometry and load transfer
+- Trajectory validation for MD, inclination, and azimuth
+- Approximate coordinate accumulation from survey angles
+- Interpolation, local tangent, and discrete curvature utilities
+- Richer string sections with elastic, density, and friction metadata
+- Richer centralizer specs with count hints or explicit installation MDs
+- Geometric baseline report for clearance, curvature risk, and section summaries
+- Verification cases for YAML parsing, geometry utilities, and CLI execution
 
 ## Phase 3
 
+- Stiff-string representation for tubular mechanics
+- Contact detection and reaction forces along the well trajectory
+- Real side-force prediction
+- Real standoff estimation
 - Torque and drag model coupled to axial load response
 - Detailed bow-spring centralizer behavior
 - Expanded benchmark library and regression baselines
@@ -33,5 +40,4 @@
 
 - Keep SI units internal even if external reports later expose oilfield units.
 - Keep input data externalized in YAML instead of embedding cases in solver code.
-- Treat placeholder outputs as scaffolding only until verified mechanics land.
-
+- Treat Phase 2 geometry outputs as scaffolding only until verified mechanics land.

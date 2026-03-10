@@ -1,6 +1,6 @@
 # centraltd
 
-Phase 1 scaffold for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. This stage provides the repository structure, development environment, build system, pybind11 bindings, YAML-driven inputs, a Python CLI, examples, and smoke tests. It intentionally does not implement the full physical solver.
+Phase 2 baseline for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository now includes validated trajectory geometry utilities, richer string and centralizer data models, a geometric baseline report, pybind11 bindings, YAML-driven inputs, CLI workflows, and executable tests. It still does not implement the full stiff-string, contact, or torque and drag solver.
 
 ## Objective
 
@@ -18,7 +18,7 @@ Build a clean base for future phases where the numerical kernel remains in C++, 
 ## Roadmap By Phase
 
 - Phase 1: Scaffold, environment, build, bindings, YAML schema, CLI, smoke tests, and docs.
-- Phase 2: Stiff-string geometry, contact detection, basic standoff estimation, and richer verification.
+- Phase 2: Trajectory geometry utilities, richer tubular and centralizer data, YAML validation, geometric baseline reporting, and richer verification.
 - Phase 3: Torque and drag calculations, bow-spring detail, calibration workflows, and benchmark suite growth.
 - Phase 4: Optimization, reporting automation, and scenario management for engineering studies.
 
@@ -57,10 +57,10 @@ Print a case summary:
 centraltd summary examples/minimal_case.yaml
 ```
 
-Run the solver stub and write JSON output:
+Run the Phase 2 baseline and write JSON output:
 
 ```bash
-centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_stub.json
+centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase2_stub.json
 ```
 
 ## Tests
@@ -79,14 +79,28 @@ pytest
 
 ## Current Scope
 
-The Phase 1 solver is a deterministic stub. It validates basic inputs and emits placeholder outputs plus explicit TODOs for:
+The current baseline implements:
+
+- trajectory validation from MD, inclination, and azimuth
+- approximate trajectory geometry by balanced-tangent integration
+- interpolation and discrete curvature utilities along MD
+- richer string section properties and aggregate summaries
+- richer centralizer specs with count hints or explicit installation MDs
+- geometric placeholder metrics for clearance, curvature risk, and survey complexity
+
+Important limitations:
+
+- trajectory coordinates are approximated from survey angles and are not a survey-processing reference implementation
+- nominal radial clearance is geometric only and is not real contact or standoff
+- placeholder torque output is geometry-derived only and is not torque and drag physics
+
+Explicit Phase 3 TODOs:
 
 - stiff-string
 - contact
-- standoff
-- bow-spring detailed model
-- torque and drag
+- side force real
+- standoff real
+- torque and drag real
 - optimizer
 
 Those outputs are scaffolding aids, not validated engineering predictions.
-

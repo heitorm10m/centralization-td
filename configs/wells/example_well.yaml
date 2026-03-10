@@ -1,21 +1,18 @@
 name: example-well
+hole_diameter_m: 0.216
 trajectory:
   - measured_depth_m: 0.0
     inclination_rad: 0.0
     azimuth_rad: 0.0
-    tvd_m: 0.0
-    northing_m: 0.0
-    easting_m: 0.0
-  - measured_depth_m: 500.0
-    inclination_rad: 0.174533
-    azimuth_rad: 0.0
-    tvd_m: 492.4
-    northing_m: 86.8
-    easting_m: 0.0
-  - measured_depth_m: 1500.0
-    inclination_rad: 0.523599
-    azimuth_rad: 0.785398
-    tvd_m: 1350.0
-    northing_m: 430.0
-    easting_m: 430.0
-
+  - measured_depth_m: 250.0
+    inclination_rad: 0.034907
+    azimuth_rad: 0.000000
+  - measured_depth_m: 800.0
+    inclination_rad: 0.191986
+    azimuth_rad: 0.261799
+  - measured_depth_m: 1400.0
+    inclination_rad: 0.436332
+    azimuth_rad: 0.610865
+  - measured_depth_m: 2000.0
+    inclination_rad: 0.698132
+    azimuth_rad: 0.959931

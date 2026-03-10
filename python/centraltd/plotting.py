@@ -4,7 +4,7 @@ from .models import WellModel
 
 
 def trajectory_plan_view(well: WellModel) -> list[tuple[float, float]]:
-    return [(point.easting_m, point.northing_m) for point in well.trajectory]
+    return [(node.easting_m, node.northing_m) for node in well.derived_nodes()]
 
 
 def plot_plan_view(well: WellModel) -> None:
@@ -25,4 +25,3 @@ def plot_plan_view(well: WellModel) -> None:
     plt.axis("equal")
     plt.tight_layout()
     plt.show()
-

@@ -53,7 +53,7 @@ def load_case_bundle(case_path: str | Path) -> LoadedCase:
     raw_string = _expect_mapping(read_yaml(string_path), "string file")
     raw_centralizers = _expect_mapping(read_yaml(centralizers_path), "centralizers file")
 
-    return LoadedCase(
+    loaded_case = LoadedCase(
         case_path=resolved_case_path,
         definition=definition,
         well_path=well_path,
@@ -63,4 +63,5 @@ def load_case_bundle(case_path: str | Path) -> LoadedCase:
         string=StringConfigModel.from_dict(raw_string),
         centralizers=CentralizerConfigModel.from_dict(raw_centralizers),
     )
-
+    loaded_case.validate()
+    return loaded_case

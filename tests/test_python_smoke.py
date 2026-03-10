@@ -20,8 +20,10 @@ def test_summary_command_prints_case_overview() -> None:
 
     assert result.exit_code == 0
     assert "Case: minimal-case" in result.stdout
-    assert "Trajectory points: 3" in result.stdout
-    assert "String sections: 2" in result.stdout
+    assert "Trajectory points: 5" in result.stdout
+    assert "String sections: 3" in result.stdout
+    assert "Approx vertical depth [m]:" in result.stdout
+    assert "Centralizer specs: 2" in result.stdout
 
 
 def test_run_stub_writes_json_output(tmp_path: Path) -> None:
@@ -35,6 +37,9 @@ def test_run_stub_writes_json_output(tmp_path: Path) -> None:
     assert output_path.exists()
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["status"] == "stub"
+    assert payload["status"] == "phase2-baseline"
     assert payload["backend"] in {"cpp", "python-fallback"}
+    assert payload["trajectory_summary"]["point_count"] == 5
+    assert payload["string_summary"]["section_count"] == 3
+    assert "warnings" in payload
     assert len(payload["todos"]) == 6
