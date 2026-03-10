@@ -19,6 +19,13 @@ struct StringSection {
   Scalar friction_coefficient{0.0};
 
   Scalar length_m() const noexcept;
+  Scalar outer_radius_m() const noexcept;
+  Scalar cross_sectional_area_m2() const noexcept;
+  Scalar second_moment_of_area_m4() const noexcept;
+  Scalar bending_stiffness_n_m2() const noexcept;
+  Scalar displaced_area_m2() const noexcept;
+  Scalar buoyancy_force_n_per_m(Scalar fluid_density_kg_per_m3) const noexcept;
+  Scalar effective_line_weight_n_per_m(Scalar fluid_density_kg_per_m3) const noexcept;
   bool contains_md(Scalar measured_depth_m) const noexcept;
   void validate() const;
 };

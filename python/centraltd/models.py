@@ -13,6 +13,7 @@ class ConfigError(ValueError):
 
 PI = math.pi
 TAU = 2.0 * math.pi
+STANDARD_GRAVITY_M_PER_S2 = 9.80665
 
 
 def _expect_mapping(raw: Any, context: str) -> Mapping[str, Any]:
@@ -171,6 +172,7 @@ class WellModel:
     name: str
     trajectory: list[WellTrajectoryPointModel]
     hole_diameter_m: float | None = None
+    fluid_density_kg_per_m3: float = 1000.0
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "WellModel":
@@ -184,10 +186,14 @@ class WellModel:
             for index, item in enumerate(trajectory_raw)
         ]
         hole_diameter_m = _optional_float(raw, "hole_diameter_m", context)
+        fluid_density_kg_per_m3 = _optional_float(raw, "fluid_density_kg_per_m3", context)
         model = cls(
             name=_require_text(raw, "name", context),
             trajectory=trajectory,
             hole_diameter_m=hole_diameter_m,
+            fluid_density_kg_per_m3=1000.0
+            if fluid_density_kg_per_m3 is None
+            else fluid_density_kg_per_m3,
         )
         model.validate()
         return model
@@ -197,6 +203,8 @@ class WellModel:
             raise ConfigError("well.trajectory must contain at least one point.")
         if self.hole_diameter_m is not None and self.hole_diameter_m <= 0.0:
             raise ConfigError("well.hole_diameter_m must be positive when provided.")
+        if self.fluid_density_kg_per_m3 < 0.0:
+            raise ConfigError("well.fluid_density_kg_per_m3 must be non-negative.")
         previous_md = -1.0
         for index, point in enumerate(self.trajectory):
             point.validate(f"well.trajectory[{index}]")
@@ -353,6 +361,32 @@ class StringSectionModel:
     def length_m(self) -> float:
         return self.md_end_m - self.md_start_m
 
+    @property
+    def outer_radius_m(self) -> float:
+        return 0.5 * self.outer_diameter_m
+
+    @property
+    def cross_sectional_area_m2(self) -> float:
+        return 0.25 * PI * ((self.outer_diameter_m**2) - (self.inner_diameter_m**2))
+
+    @property
+    def second_moment_of_area_m4(self) -> float:
+        return (PI / 64.0) * ((self.outer_diameter_m**4) - (self.inner_diameter_m**4))
+
+    @property
+    def bending_stiffness_n_m2(self) -> float:
+        return self.young_modulus_pa * self.second_moment_of_area_m4
+
+    @property
+    def displaced_area_m2(self) -> float:
+        return 0.25 * PI * (self.outer_diameter_m**2)
+
+    def buoyancy_force_n_per_m(self, fluid_density_kg_per_m3: float) -> float:
+        return fluid_density_kg_per_m3 * STANDARD_GRAVITY_M_PER_S2 * self.displaced_area_m2
+
+    def effective_line_weight_n_per_m(self, fluid_density_kg_per_m3: float) -> float:
+        return self.linear_weight_n_per_m - self.buoyancy_force_n_per_m(fluid_density_kg_per_m3)
+
     def contains_md(self, measured_depth_m: float) -> bool:
         return self.md_start_m <= measured_depth_m <= self.md_end_m
 
@@ -395,6 +429,7 @@ class StringSummaryModel:
     section_count: int
     total_length_m: float
     total_weight_n: float
+    total_effective_weight_n: float
     max_outer_diameter_m: float
     min_inner_diameter_m: float
     average_friction_coefficient: float
@@ -434,6 +469,10 @@ class StringConfigModel:
     def summary(self) -> StringSummaryModel:
         total_length_m = sum(section.length_m for section in self.sections)
         total_weight_n = sum(section.length_m * section.linear_weight_n_per_m for section in self.sections)
+        total_effective_weight_n = sum(
+            section.length_m * section.effective_line_weight_n_per_m(1000.0)
+            for section in self.sections
+        )
         max_outer_diameter_m = max(section.outer_diameter_m for section in self.sections)
         min_inner_diameter_m = min(section.inner_diameter_m for section in self.sections)
         average_friction_coefficient = (
@@ -450,6 +489,7 @@ class StringConfigModel:
             section_count=len(self.sections),
             total_length_m=total_length_m,
             total_weight_n=total_weight_n,
+            total_effective_weight_n=total_effective_weight_n,
             max_outer_diameter_m=max_outer_diameter_m,
             min_inner_diameter_m=min_inner_diameter_m,
             average_friction_coefficient=average_friction_coefficient,
@@ -553,6 +593,7 @@ class CentralizerSummaryModel:
     explicit_installation_count: int
     count_hint_total: int
     spacing_based_installation_estimate: int
+    expanded_installation_count: int
     max_outer_diameter_m: float
     min_nominal_radial_clearance_m: float
 
@@ -598,6 +639,7 @@ class CentralizerConfigModel:
             explicit_installation_count=explicit_installation_count,
             count_hint_total=count_hint_total,
             spacing_based_installation_estimate=spacing_based_installation_estimate,
+            expanded_installation_count=spacing_based_installation_estimate,
             max_outer_diameter_m=max_outer_diameter_m,
             min_nominal_radial_clearance_m=min(clearances) if clearances else 0.0,
         )
@@ -610,6 +652,9 @@ class CaseDefinition:
     string: str
     centralizers: str
     output_json: str | None = None
+    discretization_step_m: float | None = None
+    global_solver_max_iterations: int | None = None
+    contact_penalty_scale: float | None = None
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "CaseDefinition":
@@ -620,7 +665,22 @@ class CaseDefinition:
             string=_require_text(raw, "string", context),
             centralizers=_require_text(raw, "centralizers", context),
             output_json=_optional_text(raw, "output_json"),
+            discretization_step_m=_optional_float(raw, "discretization_step_m", context),
+            global_solver_max_iterations=(
+                None
+                if raw.get("global_solver_max_iterations") is None
+                else _require_int(raw, "global_solver_max_iterations", context)
+            ),
+            contact_penalty_scale=_optional_float(raw, "contact_penalty_scale", context),
         )
+
+    def validate(self) -> None:
+        if self.discretization_step_m is not None and self.discretization_step_m <= 0.0:
+            raise ConfigError("case.discretization_step_m must be positive when provided.")
+        if self.global_solver_max_iterations is not None and self.global_solver_max_iterations <= 0:
+            raise ConfigError("case.global_solver_max_iterations must be at least one when provided.")
+        if self.contact_penalty_scale is not None and self.contact_penalty_scale <= 0.0:
+            raise ConfigError("case.contact_penalty_scale must be positive when provided.")
 
 
 @dataclass(slots=True)
@@ -635,6 +695,7 @@ class LoadedCase:
     centralizers: CentralizerConfigModel
 
     def validate(self) -> None:
+        self.definition.validate()
         self.well.validate()
         self.string.validate()
         self.centralizers.validate()
@@ -667,6 +728,30 @@ class LoadedCase:
     def reference_hole_diameter_m(self) -> float:
         return 0.0 if self.well.hole_diameter_m is None else self.well.hole_diameter_m
 
+    @property
+    def fluid_density_kg_per_m3(self) -> float:
+        return self.well.fluid_density_kg_per_m3
+
+    @property
+    def discretization_step_m(self) -> float:
+        return 30.0 if self.definition.discretization_step_m is None else self.definition.discretization_step_m
+
+    @property
+    def global_solver_max_iterations(self) -> int:
+        return (
+            8
+            if self.definition.global_solver_max_iterations is None
+            else self.definition.global_solver_max_iterations
+        )
+
+    @property
+    def contact_penalty_scale(self) -> float:
+        return (
+            25.0
+            if self.definition.contact_penalty_scale is None
+            else self.definition.contact_penalty_scale
+        )
+
     def trajectory_summary(self) -> TrajectorySummaryModel:
         return self.well.summary()
 
@@ -674,7 +759,41 @@ class LoadedCase:
         return self.well.derived_nodes()
 
     def string_summary(self) -> StringSummaryModel:
-        return self.string.summary()
+        total_length_m = sum(section.length_m for section in self.string.sections)
+        total_weight_n = sum(
+            section.length_m * section.linear_weight_n_per_m for section in self.string.sections
+        )
+        total_effective_weight_n = sum(
+            section.length_m * section.effective_line_weight_n_per_m(self.fluid_density_kg_per_m3)
+            for section in self.string.sections
+        )
+        max_outer_diameter_m = max(section.outer_diameter_m for section in self.string.sections)
+        min_inner_diameter_m = min(section.inner_diameter_m for section in self.string.sections)
+        average_friction_coefficient = (
+            0.0
+            if total_length_m <= 0.0
+            else sum(
+                section.friction_coefficient * section.length_m
+                for section in self.string.sections
+            )
+            / total_length_m
+        )
+        average_density_kg_per_m3 = (
+            0.0
+            if total_length_m <= 0.0
+            else sum(section.density_kg_per_m3 * section.length_m for section in self.string.sections)
+            / total_length_m
+        )
+        return StringSummaryModel(
+            section_count=len(self.string.sections),
+            total_length_m=total_length_m,
+            total_weight_n=total_weight_n,
+            total_effective_weight_n=total_effective_weight_n,
+            max_outer_diameter_m=max_outer_diameter_m,
+            min_inner_diameter_m=min_inner_diameter_m,
+            average_friction_coefficient=average_friction_coefficient,
+            average_density_kg_per_m3=average_density_kg_per_m3,
+        )
 
     def centralizer_summary(self) -> CentralizerSummaryModel:
         return self.centralizers.summary(self.string_summary().total_length_m, self.reference_hole_diameter_m)
@@ -689,7 +808,7 @@ class LoadedCase:
         return self.string_summary().total_weight_n
 
     def total_centralizer_count(self) -> int:
-        return self.centralizer_summary().explicit_installation_count
+        return self.centralizer_summary().expanded_installation_count
 
     def minimum_nominal_radial_clearance_m(self) -> float:
         section_clearances = [summary.nominal_radial_clearance_m for summary in self.section_summaries()]

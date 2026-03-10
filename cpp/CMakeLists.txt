@@ -3,6 +3,13 @@ add_library(centraltd_core STATIC
     src/well.cpp
     src/string_section.cpp
     src/centralizer.cpp
+    src/discretization.cpp
+    src/centralizer_support.cpp
+    src/lateral_equilibrium.cpp
+    src/contact_approximation.cpp
+    src/global_assembly.cpp
+    src/global_solver.cpp
+    src/mechanical_solver.cpp
     src/solver_stub.cpp
 )
 

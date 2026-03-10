@@ -2,4 +2,7 @@ name: minimal-case
 well: ../configs/wells/example_well.yaml
 string: ../configs/strings/example_string.yaml
 centralizers: ../configs/centralizers/example_centralizer.yaml
-output_json: minimal_case_phase2_stub.json
+discretization_step_m: 40.0
+global_solver_max_iterations: 8
+contact_penalty_scale: 25.0
+output_json: minimal_case_phase5_stub.json

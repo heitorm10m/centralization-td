@@ -9,7 +9,7 @@ from .runner import format_case_summary, load_case, run_stub_case
 
 app = typer.Typer(
     add_completion=False,
-    help="CLI for Phase 2 geometry baseline of the centralization and torque & drag project.",
+    help="CLI for the staged centralization and torque & drag project baselines.",
 )
 
 
@@ -39,7 +39,7 @@ def run_stub(
         help="Optional JSON output path. Defaults to the path defined by the case manifest.",
     ),
 ) -> None:
-    """Execute the deterministic solver stub and write a JSON result file."""
+    """Execute the current baseline solver and write a JSON result file."""
 
     try:
         loaded_case, payload, output_path = run_stub_case(case_path, output)
@@ -51,6 +51,7 @@ def run_stub(
     typer.echo("")
     typer.echo(f"Backend: {payload['backend']}")
     typer.echo(f"Status: {payload['status']}")
+    typer.echo(f"Message: {payload['message']}")
     typer.echo(
         "Approx vertical depth [m]: "
         f"{payload['trajectory_summary']['vertical_depth_m']:.2f}"
@@ -63,14 +64,65 @@ def run_stub(
         "Max discrete curvature [rad/m]: "
         f"{payload['trajectory_summary']['max_curvature_rad_per_m']:.6f}"
     )
-    typer.echo(f"Hookload placeholder [N]: {payload['estimated_hookload_n']:.2f}")
-    typer.echo(f"Surface torque placeholder [N.m]: {payload['estimated_surface_torque_n_m']:.2f}")
-    typer.echo(f"Minimum standoff placeholder [-]: {payload['minimum_standoff_ratio']:.3f}")
+    typer.echo(
+        "Global solver iterations [-]: "
+        f"{payload['mechanical_summary']['global_solver_iteration_count']}"
+    )
+    typer.echo(
+        "Global solver final update norm [m]: "
+        f"{payload['mechanical_summary']['global_solver_final_update_norm_m']:.6e}"
+    )
+    typer.echo(
+        "Top effective axial load [N]: "
+        f"{payload['mechanical_summary']['top_effective_axial_load_n']:.2f}"
+    )
+    typer.echo(
+        "Max bending moment [N.m]: "
+        f"{payload['mechanical_summary']['maximum_bending_moment_n_m']:.2f}"
+    )
+    typer.echo(
+        "Max bending stress [Pa]: "
+        f"{payload['mechanical_summary']['maximum_bending_stress_pa']:.2f}"
+    )
+    typer.echo(
+        "Max bending strain estimate [-]: "
+        f"{payload['mechanical_summary']['maximum_bending_strain_estimate']:.6f}"
+    )
+    typer.echo(
+        "Max lateral load [N/m]: "
+        f"{payload['mechanical_summary']['maximum_equivalent_lateral_load_n_per_m']:.2f}"
+    )
+    typer.echo(
+        "Max normal reaction estimate [N]: "
+        f"{payload['mechanical_summary']['maximum_normal_reaction_estimate_n']:.2f}"
+    )
+    typer.echo(
+        "Max eccentricity estimate [m]: "
+        f"{payload['mechanical_summary']['maximum_eccentricity_estimate_m']:.6f}"
+    )
+    typer.echo(
+        "Minimum standoff estimate [-]: "
+        f"{payload['minimum_standoff_estimate']:.3f}"
+    )
     typer.echo(
         "Minimum nominal radial clearance [m]: "
         f"{payload['minimum_nominal_radial_clearance_m']:.4f}"
     )
-    typer.echo(f"Curvature-risk nodes placeholder: {payload['contact_nodes']}")
+    if payload["estimated_surface_torque_n_m"] is None:
+        typer.echo(
+            "Surface torque [N.m]: not implemented yet "
+            f"({payload['torque_and_drag_status']})"
+        )
+    else:
+        typer.echo(f"Surface torque [N.m]: {payload['estimated_surface_torque_n_m']:.2f}")
+    typer.echo(
+        "Contact segments: "
+        f"{payload['mechanical_summary']['contact_segment_count']}"
+    )
+    typer.echo(
+        "Pipe-body contact segments: "
+        f"{payload['mechanical_summary']['pipe_body_contact_segment_count']}"
+    )
     typer.echo(f"Saved JSON: {output_path}")
 
 

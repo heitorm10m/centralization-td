@@ -1,4 +1,6 @@
 #include "centraltd/centralizer.hpp"
+#include "centraltd/discretization.hpp"
+#include "centraltd/mechanical_solver.hpp"
 #include "centraltd/solver_stub.hpp"
 #include "centraltd/string_section.hpp"
 #include "centraltd/version.hpp"
@@ -100,6 +102,19 @@ PYBIND11_MODULE(_core, m) {
           &centraltd::StringSection::friction_coefficient)
       .def("length_m", &centraltd::StringSection::length_m)
       .def("contains_md", &centraltd::StringSection::contains_md, py::arg("measured_depth_m"))
+      .def("outer_radius_m", &centraltd::StringSection::outer_radius_m)
+      .def("cross_sectional_area_m2", &centraltd::StringSection::cross_sectional_area_m2)
+      .def("second_moment_of_area_m4", &centraltd::StringSection::second_moment_of_area_m4)
+      .def("bending_stiffness_n_m2", &centraltd::StringSection::bending_stiffness_n_m2)
+      .def("displaced_area_m2", &centraltd::StringSection::displaced_area_m2)
+      .def(
+          "buoyancy_force_n_per_m",
+          &centraltd::StringSection::buoyancy_force_n_per_m,
+          py::arg("fluid_density_kg_per_m3"))
+      .def(
+          "effective_line_weight_n_per_m",
+          &centraltd::StringSection::effective_line_weight_n_per_m,
+          py::arg("fluid_density_kg_per_m3"))
       .def("validate", &centraltd::StringSection::validate);
 
   py::class_<centraltd::CentralizerSpec>(m, "CentralizerSpec")
@@ -148,6 +163,9 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("section_count", &centraltd::StringSummary::section_count)
       .def_readwrite("total_length_m", &centraltd::StringSummary::total_length_m)
       .def_readwrite("total_weight_n", &centraltd::StringSummary::total_weight_n)
+      .def_readwrite(
+          "total_effective_weight_n",
+          &centraltd::StringSummary::total_effective_weight_n)
       .def_readwrite("max_outer_diameter_m", &centraltd::StringSummary::max_outer_diameter_m)
       .def_readwrite("min_inner_diameter_m", &centraltd::StringSummary::min_inner_diameter_m)
       .def_readwrite(
@@ -170,11 +188,194 @@ PYBIND11_MODULE(_core, m) {
           "spacing_based_installation_estimate",
           &centraltd::CentralizerSummary::spacing_based_installation_estimate)
       .def_readwrite(
+          "expanded_installation_count",
+          &centraltd::CentralizerSummary::expanded_installation_count)
+      .def_readwrite(
           "max_outer_diameter_m",
           &centraltd::CentralizerSummary::max_outer_diameter_m)
       .def_readwrite(
           "min_nominal_radial_clearance_m",
           &centraltd::CentralizerSummary::min_nominal_radial_clearance_m);
+
+  py::class_<centraltd::DiscretizationSettings>(m, "DiscretizationSettings")
+      .def(py::init<>())
+      .def_readwrite(
+          "target_segment_length_m",
+          &centraltd::DiscretizationSettings::target_segment_length_m)
+      .def_readwrite(
+          "global_solver_max_iterations",
+          &centraltd::DiscretizationSettings::global_solver_max_iterations)
+      .def_readwrite(
+          "contact_penalty_scale",
+          &centraltd::DiscretizationSettings::contact_penalty_scale)
+      .def("validate", &centraltd::DiscretizationSettings::validate);
+
+  py::class_<centraltd::MechanicalSegmentResult>(m, "MechanicalSegmentResult")
+      .def(py::init<>())
+      .def_readwrite(
+          "measured_depth_start_m",
+          &centraltd::MechanicalSegmentResult::measured_depth_start_m)
+      .def_readwrite(
+          "measured_depth_end_m",
+          &centraltd::MechanicalSegmentResult::measured_depth_end_m)
+      .def_readwrite(
+          "measured_depth_center_m",
+          &centraltd::MechanicalSegmentResult::measured_depth_center_m)
+      .def_readwrite("segment_length_m", &centraltd::MechanicalSegmentResult::segment_length_m)
+      .def_readwrite("section_name", &centraltd::MechanicalSegmentResult::section_name)
+      .def_readwrite("inclination_rad", &centraltd::MechanicalSegmentResult::inclination_rad)
+      .def_readwrite(
+          "curvature_rad_per_m",
+          &centraltd::MechanicalSegmentResult::curvature_rad_per_m)
+      .def_readwrite(
+          "effective_line_weight_n_per_m",
+          &centraltd::MechanicalSegmentResult::effective_line_weight_n_per_m)
+      .def_readwrite(
+          "effective_axial_load_n",
+          &centraltd::MechanicalSegmentResult::effective_axial_load_n)
+      .def_readwrite(
+          "bending_stiffness_n_m2",
+          &centraltd::MechanicalSegmentResult::bending_stiffness_n_m2)
+      .def_readwrite(
+          "bending_moment_n_m",
+          &centraltd::MechanicalSegmentResult::bending_moment_n_m)
+      .def_readwrite(
+          "bending_stress_pa",
+          &centraltd::MechanicalSegmentResult::bending_stress_pa)
+      .def_readwrite(
+          "bending_strain_estimate",
+          &centraltd::MechanicalSegmentResult::bending_strain_estimate)
+      .def_readwrite(
+          "gravity_lateral_load_n_per_m",
+          &centraltd::MechanicalSegmentResult::gravity_lateral_load_n_per_m)
+      .def_readwrite(
+          "curvature_lateral_load_n_per_m",
+          &centraltd::MechanicalSegmentResult::curvature_lateral_load_n_per_m)
+      .def_readwrite(
+          "equivalent_lateral_load_n_per_m",
+          &centraltd::MechanicalSegmentResult::equivalent_lateral_load_n_per_m)
+      .def_readwrite(
+          "equivalent_lateral_force_n",
+          &centraltd::MechanicalSegmentResult::equivalent_lateral_force_n)
+      .def_readwrite(
+          "bending_lateral_stiffness_n_per_m",
+          &centraltd::MechanicalSegmentResult::bending_lateral_stiffness_n_per_m)
+      .def_readwrite(
+          "axial_tension_lateral_stiffness_n_per_m",
+          &centraltd::MechanicalSegmentResult::axial_tension_lateral_stiffness_n_per_m)
+      .def_readwrite(
+          "structural_lateral_stiffness_n_per_m",
+          &centraltd::MechanicalSegmentResult::structural_lateral_stiffness_n_per_m)
+      .def_readwrite(
+          "centralizer_centering_stiffness_n_per_m",
+          &centraltd::MechanicalSegmentResult::centralizer_centering_stiffness_n_per_m)
+      .def_readwrite(
+          "support_contact_penalty_n_per_m",
+          &centraltd::MechanicalSegmentResult::support_contact_penalty_n_per_m)
+      .def_readwrite(
+          "body_contact_penalty_n_per_m",
+          &centraltd::MechanicalSegmentResult::body_contact_penalty_n_per_m)
+      .def_readwrite(
+          "support_outer_diameter_m",
+          &centraltd::MechanicalSegmentResult::support_outer_diameter_m)
+      .def_readwrite(
+          "pipe_body_clearance_m",
+          &centraltd::MechanicalSegmentResult::pipe_body_clearance_m)
+      .def_readwrite(
+          "support_contact_clearance_m",
+          &centraltd::MechanicalSegmentResult::support_contact_clearance_m)
+      .def_readwrite(
+          "free_eccentricity_estimate_m",
+          &centraltd::MechanicalSegmentResult::free_eccentricity_estimate_m)
+      .def_readwrite(
+          "eccentricity_estimate_m",
+          &centraltd::MechanicalSegmentResult::eccentricity_estimate_m)
+      .def_readwrite(
+          "eccentricity_ratio",
+          &centraltd::MechanicalSegmentResult::eccentricity_ratio)
+      .def_readwrite("standoff_estimate", &centraltd::MechanicalSegmentResult::standoff_estimate)
+      .def_readwrite(
+          "support_normal_reaction_estimate_n",
+          &centraltd::MechanicalSegmentResult::support_normal_reaction_estimate_n)
+      .def_readwrite(
+          "body_normal_reaction_estimate_n",
+          &centraltd::MechanicalSegmentResult::body_normal_reaction_estimate_n)
+      .def_readwrite(
+          "normal_reaction_estimate_n",
+          &centraltd::MechanicalSegmentResult::normal_reaction_estimate_n)
+      .def_readwrite(
+          "normal_reaction_estimate_n_per_m",
+          &centraltd::MechanicalSegmentResult::normal_reaction_estimate_n_per_m)
+      .def_readwrite(
+          "nearby_centralizer_count",
+          &centraltd::MechanicalSegmentResult::nearby_centralizer_count)
+      .def_readwrite(
+          "contact_iteration_count",
+          &centraltd::MechanicalSegmentResult::contact_iteration_count)
+      .def_readwrite("contact_state", &centraltd::MechanicalSegmentResult::contact_state)
+      .def_readwrite("support_in_contact", &centraltd::MechanicalSegmentResult::support_in_contact)
+      .def_readwrite(
+          "pipe_body_in_contact",
+          &centraltd::MechanicalSegmentResult::pipe_body_in_contact)
+      .def_readwrite("standoff_proxy", &centraltd::MechanicalSegmentResult::standoff_estimate);
+
+  py::class_<centraltd::MechanicalSummary>(m, "MechanicalSummary")
+      .def(py::init<>())
+      .def_readwrite("segment_count", &centraltd::MechanicalSummary::segment_count)
+      .def_readwrite(
+          "target_segment_length_m",
+          &centraltd::MechanicalSummary::target_segment_length_m)
+      .def_readwrite(
+          "global_solver_iteration_count",
+          &centraltd::MechanicalSummary::global_solver_iteration_count)
+      .def_readwrite(
+          "global_solver_final_update_norm_m",
+          &centraltd::MechanicalSummary::global_solver_final_update_norm_m)
+      .def_readwrite(
+          "top_effective_axial_load_n",
+          &centraltd::MechanicalSummary::top_effective_axial_load_n)
+      .def_readwrite(
+          "minimum_effective_axial_load_n",
+          &centraltd::MechanicalSummary::minimum_effective_axial_load_n)
+      .def_readwrite(
+          "maximum_effective_axial_load_n",
+          &centraltd::MechanicalSummary::maximum_effective_axial_load_n)
+      .def_readwrite(
+          "maximum_bending_moment_n_m",
+          &centraltd::MechanicalSummary::maximum_bending_moment_n_m)
+      .def_readwrite(
+          "maximum_bending_stress_pa",
+          &centraltd::MechanicalSummary::maximum_bending_stress_pa)
+      .def_readwrite(
+          "maximum_bending_strain_estimate",
+          &centraltd::MechanicalSummary::maximum_bending_strain_estimate)
+      .def_readwrite(
+          "maximum_equivalent_lateral_load_n_per_m",
+          &centraltd::MechanicalSummary::maximum_equivalent_lateral_load_n_per_m)
+      .def_readwrite(
+          "maximum_eccentricity_estimate_m",
+          &centraltd::MechanicalSummary::maximum_eccentricity_estimate_m)
+      .def_readwrite(
+          "maximum_eccentricity_ratio",
+          &centraltd::MechanicalSummary::maximum_eccentricity_ratio)
+      .def_readwrite(
+          "minimum_standoff_estimate",
+          &centraltd::MechanicalSummary::minimum_standoff_estimate)
+      .def_readwrite(
+          "maximum_normal_reaction_estimate_n",
+          &centraltd::MechanicalSummary::maximum_normal_reaction_estimate_n)
+      .def_readwrite(
+          "contact_segment_count",
+          &centraltd::MechanicalSummary::contact_segment_count)
+      .def_readwrite(
+          "support_contact_segment_count",
+          &centraltd::MechanicalSummary::support_contact_segment_count)
+      .def_readwrite(
+          "pipe_body_contact_segment_count",
+          &centraltd::MechanicalSummary::pipe_body_contact_segment_count)
+      .def_readwrite(
+          "minimum_standoff_proxy",
+          &centraltd::MechanicalSummary::minimum_standoff_estimate);
 
   py::class_<centraltd::SolverStubInput>(m, "SolverStubInput")
       .def(py::init<>())
@@ -182,6 +383,12 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "reference_hole_diameter_m",
           &centraltd::SolverStubInput::reference_hole_diameter_m)
+      .def_readwrite(
+          "fluid_density_kg_per_m3",
+          &centraltd::SolverStubInput::fluid_density_kg_per_m3)
+      .def_readwrite(
+          "discretization_settings",
+          &centraltd::SolverStubInput::discretization_settings)
       .def_readwrite("string_sections", &centraltd::SolverStubInput::string_sections)
       .def_readwrite("centralizers", &centraltd::SolverStubInput::centralizers)
       .def("validate", &centraltd::SolverStubInput::validate);
@@ -201,17 +408,34 @@ PYBIND11_MODULE(_core, m) {
           "centralizer_summary",
           &centraltd::SolverStubResult::centralizer_summary)
       .def_readwrite(
+          "mechanical_summary",
+          &centraltd::SolverStubResult::mechanical_summary)
+      .def_readwrite(
           "section_summaries",
           &centraltd::SolverStubResult::section_summaries)
+      .def_readwrite(
+          "mechanical_profile",
+          &centraltd::SolverStubResult::mechanical_profile)
       .def_readwrite("estimated_hookload_n", &centraltd::SolverStubResult::estimated_hookload_n)
       .def_readwrite(
           "estimated_surface_torque_n_m",
           &centraltd::SolverStubResult::estimated_surface_torque_n_m)
-      .def_readwrite("minimum_standoff_ratio", &centraltd::SolverStubResult::minimum_standoff_ratio)
+      .def_readwrite(
+          "minimum_standoff_estimate",
+          &centraltd::SolverStubResult::minimum_standoff_estimate)
+      .def_readwrite(
+          "minimum_standoff_ratio",
+          &centraltd::SolverStubResult::minimum_standoff_estimate)
       .def_readwrite(
           "minimum_nominal_radial_clearance_m",
           &centraltd::SolverStubResult::minimum_nominal_radial_clearance_m)
       .def_readwrite("contact_nodes", &centraltd::SolverStubResult::contact_nodes)
+      .def_readwrite(
+          "torque_and_drag_real_implemented",
+          &centraltd::SolverStubResult::torque_and_drag_real_implemented)
+      .def_readwrite(
+          "torque_and_drag_status",
+          &centraltd::SolverStubResult::torque_and_drag_status)
       .def_readwrite("warnings", &centraltd::SolverStubResult::warnings)
       .def_readwrite("todos", &centraltd::SolverStubResult::todos);
 

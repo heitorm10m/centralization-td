@@ -1,5 +1,6 @@
 name: example-well
 hole_diameter_m: 0.216
+fluid_density_kg_per_m3: 1100.0
 trajectory:
   - measured_depth_m: 0.0
     inclination_rad: 0.0

@@ -3,14 +3,15 @@
 #include "centraltd/types.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <limits>
 #include <numeric>
 
 namespace centraltd {
 namespace {
 
-StringSummary summarize_string(const std::vector<StringSection>& sections) {
+StringSummary summarize_string(
+    const std::vector<StringSection>& sections,
+    Scalar fluid_density_kg_per_m3) {
   StringSummary summary;
   summary.section_count = sections.size();
   summary.min_inner_diameter_m = std::numeric_limits<Scalar>::max();
@@ -18,6 +19,8 @@ StringSummary summarize_string(const std::vector<StringSection>& sections) {
   for (const auto& section : sections) {
     summary.total_length_m += section.length_m();
     summary.total_weight_n += section.length_m() * section.linear_weight_n_per_m;
+    summary.total_effective_weight_n +=
+        section.length_m() * section.effective_line_weight_n_per_m(fluid_density_kg_per_m3);
     summary.max_outer_diameter_m = std::max(summary.max_outer_diameter_m, section.outer_diameter_m);
     summary.min_inner_diameter_m = std::min(summary.min_inner_diameter_m, section.inner_diameter_m);
     summary.average_friction_coefficient += section.friction_coefficient * section.length_m();
@@ -47,15 +50,17 @@ std::size_t spacing_based_estimate(const CentralizerSpec& spec, Scalar coverage_
 
   return std::max<std::size_t>(
       1U,
-      static_cast<std::size_t>(std::floor(coverage_length_m / spec.spacing_hint_m)) + 1U);
+      static_cast<std::size_t>(coverage_length_m / spec.spacing_hint_m) + 1U);
 }
 
 CentralizerSummary summarize_centralizers(
     const std::vector<CentralizerSpec>& centralizers,
+    const std::vector<CentralizerPlacement>& placements,
     Scalar coverage_length_m,
     Scalar reference_hole_diameter_m) {
   CentralizerSummary summary;
   summary.spec_count = centralizers.size();
+  summary.expanded_installation_count = placements.size();
   summary.min_nominal_radial_clearance_m = std::numeric_limits<Scalar>::max();
 
   for (const auto& spec : centralizers) {
@@ -114,24 +119,18 @@ Scalar minimum_section_clearance_m(const std::vector<StringSectionSummary>& sect
   return minimum_clearance_m == std::numeric_limits<Scalar>::max() ? 0.0 : minimum_clearance_m;
 }
 
-std::size_t curvature_risk_count(const std::vector<TrajectoryGeometryNode>& geometry_nodes) {
-  constexpr Scalar kCurvatureRiskThresholdRadPerM = 3.5e-4;
-  return std::count_if(
-      geometry_nodes.begin(),
-      geometry_nodes.end(),
-      [](const TrajectoryGeometryNode& node) {
-        return node.discrete_curvature_rad_per_m >= kCurvatureRiskThresholdRadPerM;
-      });
-}
-
 }  // namespace
 
 void SolverStubInput::validate() const {
   well.validate();
+  discretization_settings.validate();
+
   if (reference_hole_diameter_m < 0.0) {
     throw ValidationError("Reference hole diameter must be non-negative.");
   }
-
+  if (fluid_density_kg_per_m3 < 0.0) {
+    throw ValidationError("Fluid density must be non-negative.");
+  }
   if (string_sections.empty()) {
     throw ValidationError("At least one string section is required.");
   }
@@ -142,6 +141,9 @@ void SolverStubInput::validate() const {
     section.validate();
     if (section.md_start_m < previous_section_end_m) {
       throw ValidationError("String sections must be ordered and non-overlapping.");
+    }
+    if (reference_hole_diameter_m > 0.0 && section.outer_diameter_m > reference_hole_diameter_m) {
+      throw ValidationError("String outer diameter cannot exceed the reference hole diameter.");
     }
     if (section.md_end_m > final_well_md_m) {
       throw ValidationError("String section measured depth cannot exceed the final well MD.");
@@ -165,72 +167,78 @@ void SolverStubInput::validate() const {
 SolverStubResult run_solver_stub(const SolverStubInput& input) {
   input.validate();
 
-  const auto trajectory_summary = input.well.summary();
-  const auto geometry_nodes = input.well.derived_geometry();
-  const auto string_summary = summarize_string(input.string_sections);
+  const auto section_summaries = summarize_sections(
+      input.string_sections,
+      input.reference_hole_diameter_m);
+  const auto discretized_problem = discretize_problem(
+      input.well,
+      input.reference_hole_diameter_m,
+      input.fluid_density_kg_per_m3,
+      input.discretization_settings,
+      input.string_sections,
+      input.centralizers);
+  const auto mechanical_result = run_mechanical_baseline(discretized_problem);
+  const auto string_summary = summarize_string(
+      input.string_sections,
+      input.fluid_density_kg_per_m3);
   const auto centralizer_summary = summarize_centralizers(
       input.centralizers,
+      discretized_problem.centralizer_placements,
       string_summary.total_length_m,
       input.reference_hole_diameter_m);
-  const auto section_summaries =
-      summarize_sections(input.string_sections, input.reference_hole_diameter_m);
   const Scalar minimum_nominal_clearance_m =
       input.centralizers.empty()
           ? minimum_section_clearance_m(section_summaries)
           : std::min(
                 minimum_section_clearance_m(section_summaries),
                 centralizer_summary.min_nominal_radial_clearance_m);
-  const Scalar curvature_factor =
-      1.0 + (250.0 * trajectory_summary.max_curvature_rad_per_m);
-  const Scalar lateral_factor =
-      trajectory_summary.final_measured_depth_m > 0.0
-          ? 1.0 +
-                (0.5 * trajectory_summary.lateral_displacement_m /
-                 trajectory_summary.final_measured_depth_m)
-          : 1.0;
-  const Scalar reference_radius_m =
-      0.5 * std::max(string_summary.max_outer_diameter_m, 0.0);
 
   SolverStubResult result;
-  result.status = "phase2-baseline";
+  result.status = "phase5-global-stiff-string-baseline";
   result.message =
-      "Phase 2 geometry baseline. Outputs derive from survey and section geometry only, "
-      "not from a stiff-string or torque and drag solver.";
+      "Phase 5 global lateral-equilibrium baseline. The column is discretized along MD and "
+      "solved with a reduced global scalar bending-plus-tension model, nominal centralizer "
+      "support, and simple annular contact iteration. This is still not a full 3D stiff-string "
+      "or torque and drag solver.";
   result.geometry_is_approximate = true;
-  result.trajectory_summary = trajectory_summary;
+  result.trajectory_summary = discretized_problem.trajectory_summary;
   result.string_summary = string_summary;
   result.centralizer_summary = centralizer_summary;
+  result.mechanical_summary = mechanical_result.summary;
   result.section_summaries = section_summaries;
-  result.estimated_hookload_n = string_summary.total_weight_n;
-  result.estimated_surface_torque_n_m =
-      string_summary.total_weight_n * string_summary.average_friction_coefficient *
-      curvature_factor * lateral_factor * reference_radius_m;
+  result.mechanical_profile = mechanical_result.segment_results;
+  result.estimated_hookload_n = mechanical_result.summary.top_effective_axial_load_n;
+  result.estimated_surface_torque_n_m = mechanical_result.surface_torque_n_m;
+  result.minimum_standoff_estimate = mechanical_result.summary.minimum_standoff_estimate;
   result.minimum_nominal_radial_clearance_m = minimum_nominal_clearance_m;
-  result.minimum_standoff_ratio =
-      input.reference_hole_diameter_m > 0.0 && centralizer_summary.max_outer_diameter_m > 0.0
-          ? std::min<Scalar>(
-                1.0,
-                centralizer_summary.max_outer_diameter_m / input.reference_hole_diameter_m)
-          : 0.0;
-  result.contact_nodes = curvature_risk_count(geometry_nodes);
+  result.contact_nodes = mechanical_result.summary.contact_segment_count;
+  result.torque_and_drag_real_implemented = false;
+  result.torque_and_drag_status = "not-implemented-yet";
   result.warnings = {
-      "Phase 2 trajectory coordinates are approximated by balanced-tangent integration of MD, "
+      "Trajectory coordinates remain approximated by balanced-tangent integration of MD, "
       "inclination, and azimuth.",
-      "Nominal radial clearance is purely geometric and does not represent real contact or "
-      "standoff.",
-      "contact_nodes is a curvature-based risk counter, not real contact detection.",
-      "estimated_surface_torque_n_m is a geometry-derived placeholder, not a torque and drag "
-      "calculation.",
+      "The lateral equilibrium is solved with a reduced global scalar displacement model along "
+      "MD, not with a full 3D stiff-string formulation.",
+      "The bending stiffness term uses the simply supported beam equivalence "
+      "delta_max = 5 q L^4 / (384 E I), so the 384/5 factor is a reduced structural hypothesis.",
+      "Contact is handled with simple global active-set penalty iterations against annular "
+      "clearance and nominal centralizer support, not with a fully nonlinear contact/friction "
+      "algorithm.",
+      "Centralizers are represented as nominal centering/support effects only and do not use a "
+      "detailed bow-spring constitutive model.",
+      "Torque and drag remain intentionally unimplemented in this phase.",
   };
   if (input.reference_hole_diameter_m <= 0.0) {
     result.warnings.push_back(
-        "Reference hole diameter is absent, so nominal clearance metrics are reported as zero.");
+        "Reference hole diameter is absent, so radial clearance and contact metrics are "
+        "reported as zero or conservative defaults.");
   }
   result.todos = {
-      "TODO: implement stiff-string formulation.",
-      "TODO: implement contact detection and reaction forces.",
-      "TODO: implement real side force prediction.",
-      "TODO: implement real standoff evaluation from contact geometry.",
+      "TODO: refine the reduced global solver toward fuller stiff-string equilibrium with "
+      "stronger kinematic coupling.",
+      "TODO: refine contact with stronger nonlinear iteration and wall-reaction handling.",
+      "TODO: implement real side-force prediction with friction coupling.",
+      "TODO: refine centralizer behavior beyond nominal support stiffness.",
       "TODO: implement real torque and drag calculations.",
       "TODO: implement design-space optimization workflow.",
   };
