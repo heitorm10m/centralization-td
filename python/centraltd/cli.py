@@ -51,6 +51,7 @@ def run_stub(
     typer.echo("")
     typer.echo(f"Backend: {payload['backend']}")
     typer.echo(f"Status: {payload['status']}")
+    typer.echo(f"Operation mode: {payload['operation_mode']}")
     typer.echo(f"Message: {payload['message']}")
     typer.echo(
         "Approx vertical depth [m]: "
@@ -72,10 +73,17 @@ def run_stub(
         "Global solver final update norm [m]: "
         f"{payload['mechanical_summary']['global_solver_final_update_norm_m']:.6e}"
     )
+    typer.echo(f"Coupling status: {payload['coupling_status']}")
+    typer.echo(f"Coupling iterations [-]: {payload['coupling_iterations']}")
+    typer.echo(f"Coupling converged: {payload['coupling_converged']}")
     typer.echo(
         "Top effective axial load [N]: "
         f"{payload['mechanical_summary']['top_effective_axial_load_n']:.2f}"
     )
+    typer.echo(f"Hookload run in [N]: {payload['hookload_run_in_n']:.2f}")
+    typer.echo(f"Hookload pull out [N]: {payload['hookload_pull_out_n']:.2f}")
+    typer.echo(f"Drag run in [N]: {payload['drag_run_in_n']:.2f}")
+    typer.echo(f"Drag pull out [N]: {payload['drag_pull_out_n']:.2f}")
     typer.echo(
         "Max bending moment [N.m]: "
         f"{payload['mechanical_summary']['maximum_bending_moment_n_m']:.2f}"
@@ -108,13 +116,17 @@ def run_stub(
         "Minimum nominal radial clearance [m]: "
         f"{payload['minimum_nominal_radial_clearance_m']:.4f}"
     )
+    typer.echo(f"Centralizer model status: {payload['centralizer_model_status']}")
+    typer.echo(f"Torque drag status: {payload['torque_drag_status']}")
     if payload["estimated_surface_torque_n_m"] is None:
-        typer.echo(
-            "Surface torque [N.m]: not implemented yet "
-            f"({payload['torque_and_drag_status']})"
-        )
+        typer.echo(f"Surface torque [N.m]: unavailable ({payload['torque_drag_status']})")
     else:
         typer.echo(f"Surface torque [N.m]: {payload['estimated_surface_torque_n_m']:.2f}")
+    if payload["updated_estimated_surface_torque_n_m"] is not None:
+        typer.echo(
+            "Updated surface torque with detailed centralizers [N.m]: "
+            f"{payload['updated_estimated_surface_torque_n_m']:.2f}"
+        )
     typer.echo(
         "Contact segments: "
         f"{payload['mechanical_summary']['contact_segment_count']}"

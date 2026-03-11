@@ -3,13 +3,23 @@ add_library(centraltd_core STATIC
     src/well.cpp
     src/string_section.cpp
     src/centralizer.cpp
+    src/bow_spring_geometry.cpp
+    src/bow_spring_constitutive_model.cpp
+    src/bow_spring_resultants.cpp
+    src/trajectory_frame.cpp
     src/discretization.cpp
     src/centralizer_support.cpp
     src/lateral_equilibrium.cpp
     src/contact_approximation.cpp
     src/global_assembly.cpp
     src/global_solver.cpp
+    src/vector_lateral_equilibrium.cpp
+    src/vector_contact.cpp
+    src/vector_global_assembly.cpp
+    src/vector_global_solver.cpp
     src/mechanical_solver.cpp
+    src/torque_drag.cpp
+    src/coupling_driver.cpp
     src/solver_stub.cpp
 )
 

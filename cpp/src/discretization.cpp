@@ -1,5 +1,6 @@
 #include "centraltd/discretization.hpp"
 
+#include "centraltd/trajectory_frame.hpp"
 #include "centraltd/types.hpp"
 
 #include <algorithm>
@@ -34,6 +35,10 @@ Scalar angle_between(
   }
 
   return std::acos(clamp_scalar(dot_product / (lhs_norm * rhs_norm), -1.0, 1.0));
+}
+
+Scalar dot_product(const Vector3& lhs, const Vector3& rhs) {
+  return (lhs[0] * rhs[0]) + (lhs[1] * rhs[1]) + (lhs[2] * rhs[2]);
 }
 
 const StringSection& section_for_md(
@@ -79,6 +84,18 @@ void DiscretizationSettings::validate() const {
   if (contact_penalty_scale <= 0.0) {
     throw ValidationError("Contact penalty scale must be positive.");
   }
+  if (coupling_max_iterations == 0U) {
+    throw ValidationError("Coupling iteration count must be at least one.");
+  }
+  if (coupling_tolerance_n <= 0.0) {
+    throw ValidationError("Coupling tolerance must be positive.");
+  }
+  if (relaxation_factor <= 0.0 || relaxation_factor > 1.0) {
+    throw ValidationError("Relaxation factor must stay within (0, 1].");
+  }
+  if (frame_method != "parallel-transport") {
+    throw ValidationError("Frame method must currently be 'parallel-transport'.");
+  }
 }
 
 std::vector<CentralizerPlacement> expand_centralizer_placements(
@@ -112,9 +129,16 @@ std::vector<CentralizerPlacement> expand_centralizer_placements(
           spec.name,
           spec.type,
           measured_depth_m,
-          spec.outer_diameter_m,
+          spec.resolved_support_outer_diameter_m(),
           spec.nominal_restoring_force_n,
           spec.nominal_running_force_n,
+          spec.number_of_bows,
+          spec.angular_orientation_reference_deg,
+          spec.inner_clearance_to_pipe_m,
+          spec.blade_power_law_k,
+          spec.blade_power_law_p,
+          spec.min_contact_diameter_m,
+          spec.max_contact_diameter_m,
           spec.spacing_hint_m,
       });
     }
@@ -155,6 +179,7 @@ DiscretizedProblem discretize_problem(
   problem.coverage_end_md_m = coverage_end_md_m;
   problem.centralizer_placements =
       expand_centralizer_placements(centralizers, coverage_start_md_m, coverage_end_md_m);
+  const auto frame_nodes = build_trajectory_frame_nodes(well);
 
   for (Scalar segment_start_md_m = coverage_start_md_m; segment_start_md_m < coverage_end_md_m;) {
     const Scalar segment_end_md_m =
@@ -165,10 +190,24 @@ DiscretizedProblem discretize_problem(
     const auto start_point = well.interpolate(segment_start_md_m);
     const auto center_point = well.interpolate(center_md_m);
     const auto end_point = well.interpolate(segment_end_md_m);
+    const auto start_frame = interpolate_trajectory_frame(frame_nodes, segment_start_md_m);
+    const auto center_frame = interpolate_trajectory_frame(frame_nodes, center_md_m);
+    const auto end_frame = interpolate_trajectory_frame(frame_nodes, segment_end_md_m);
     const auto start_tangent = tangent_from_angles(start_point.inclination_rad, start_point.azimuth_rad);
     const auto end_tangent = tangent_from_angles(end_point.inclination_rad, end_point.azimuth_rad);
     const Scalar curvature_rad_per_m =
         segment_length_m > 0.0 ? angle_between(start_tangent, end_tangent) / segment_length_m : 0.0;
+    const Vector3 curvature_vector_north_east_tvd = {
+        segment_length_m > 0.0 ? (end_frame.tangent_north_east_tvd[0] - start_frame.tangent_north_east_tvd[0]) /
+                                     segment_length_m
+                               : 0.0,
+        segment_length_m > 0.0 ? (end_frame.tangent_north_east_tvd[1] - start_frame.tangent_north_east_tvd[1]) /
+                                     segment_length_m
+                               : 0.0,
+        segment_length_m > 0.0 ? (end_frame.tangent_north_east_tvd[2] - start_frame.tangent_north_east_tvd[2]) /
+                                     segment_length_m
+                               : 0.0,
+    };
 
     Index section_index = 0U;
     const auto& section = section_for_md(string_sections, center_md_m, &section_index);
@@ -186,6 +225,9 @@ DiscretizedProblem discretize_problem(
     segment.tvd_m = center_point.tvd_m;
     segment.northing_m = center_point.northing_m;
     segment.easting_m = center_point.easting_m;
+    segment.tangent_north_east_tvd = center_frame.tangent_north_east_tvd;
+    segment.normal_north_east_tvd = center_frame.normal_north_east_tvd;
+    segment.binormal_north_east_tvd = center_frame.binormal_north_east_tvd;
     segment.reference_hole_diameter_m = reference_hole_diameter_m;
     segment.fluid_density_kg_per_m3 = fluid_density_kg_per_m3;
     segment.section = section;
@@ -193,6 +235,11 @@ DiscretizedProblem discretize_problem(
         section.effective_line_weight_n_per_m(fluid_density_kg_per_m3);
     segment.second_moment_of_area_m4 = section.second_moment_of_area_m4();
     segment.bending_stiffness_n_m2 = section.bending_stiffness_n_m2();
+    segment.curvature_normal_component_rad_per_m =
+        dot_product(curvature_vector_north_east_tvd, center_frame.normal_north_east_tvd);
+    segment.curvature_binormal_component_rad_per_m =
+        dot_product(curvature_vector_north_east_tvd, center_frame.binormal_north_east_tvd);
+    segment.frame_rotation_change_rad = center_frame.frame_rotation_change_rad;
 
     problem.segments.push_back(std::move(segment));
     segment_start_md_m = segment_end_md_m;

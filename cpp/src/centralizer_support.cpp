@@ -1,12 +1,13 @@
 #include "centraltd/centralizer_support.hpp"
 
+#include "centraltd/bow_spring_constitutive_model.hpp"
+#include "centraltd/bow_spring_geometry.hpp"
+
 #include <algorithm>
-#include <cmath>
 
 namespace centraltd {
 namespace {
 
-constexpr Scalar kMinimumReferenceDeflectionM = 1.0e-4;
 constexpr Scalar kMinimumPenaltyStiffnessNPerM = 1.0;
 
 }  // namespace
@@ -27,32 +28,29 @@ CentralizerSupportEffect evaluate_centralizer_support_effect(
   const Scalar pipe_radius_m = segment.section.outer_radius_m();
   effect.pipe_body_clearance_m = std::max(0.0, hole_radius_m - pipe_radius_m);
 
-  const Scalar reference_deflection_m = std::max(
-      effect.pipe_body_clearance_m,
-      std::max(0.05 * segment.section.outer_diameter_m, kMinimumReferenceDeflectionM));
-
   for (const auto& placement : placements) {
-    const Scalar half_influence_length_m =
-        std::max(0.5 * placement.influence_length_m, 0.5 * segment.segment_length_m);
-    const Scalar distance_to_segment_center_m =
-        std::abs(placement.measured_depth_m - segment.measured_depth_center_m);
-    if (distance_to_segment_center_m > half_influence_length_m) {
+    const Scalar proximity_weight = placement_proximity_weight(
+        placement,
+        segment.measured_depth_center_m,
+        segment.segment_length_m);
+    if (proximity_weight <= 0.0) {
       continue;
     }
 
-    const Scalar proximity_weight =
-        std::max(0.0, 1.0 - (distance_to_segment_center_m / half_influence_length_m));
     effect.nearby_centralizer_count += 1U;
     effect.support_present = true;
     effect.support_outer_diameter_m =
-        std::max(effect.support_outer_diameter_m, placement.outer_diameter_m);
+        std::max(effect.support_outer_diameter_m, centralizer_effective_contact_diameter_m(placement));
     effect.centering_stiffness_n_per_m +=
-        proximity_weight * placement.nominal_restoring_force_n / reference_deflection_m;
+        proximity_weight *
+        equivalent_bow_support_stiffness_n_per_m(placement, hole_radius_m);
+    const Scalar placement_support_contact_clearance_m =
+        bow_contact_onset_clearance_m(placement, hole_radius_m);
+    effect.support_contact_clearance_m =
+        effect.nearby_centralizer_count == 1U
+            ? placement_support_contact_clearance_m
+            : std::min(effect.support_contact_clearance_m, placement_support_contact_clearance_m);
   }
-
-  effect.support_contact_clearance_m = std::max(
-      0.0,
-      hole_radius_m - (0.5 * effect.support_outer_diameter_m));
 
   if (effect.support_present) {
     effect.support_contact_penalty_n_per_m = contact_penalty_scale * std::max(

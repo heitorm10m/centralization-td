@@ -3,6 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+from .bow_spring import (
+    BowForceDetailModel,
+    evaluate_bow_spring_segment_result,
+    equivalent_bow_support_stiffness_n_per_m,
+    placement_proximity_weight,
+    bow_contact_onset_clearance_m,
+    centralizer_effective_contact_diameter_m,
+)
+from .frames import build_frame_nodes, interpolate_frame
 from .models import LoadedCase, StringSectionModel
 
 
@@ -10,11 +19,26 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(value, upper))
 
 
-def _normalize(vector: tuple[float, float, float]) -> tuple[float, float, float]:
-    norm = math.sqrt((vector[0] ** 2) + (vector[1] ** 2) + (vector[2] ** 2))
-    if norm <= 0.0:
-        return (0.0, 0.0, 1.0)
-    return (vector[0] / norm, vector[1] / norm, vector[2] / norm)
+def _norm2(vector: tuple[float, float]) -> float:
+    return math.sqrt((vector[0] ** 2) + (vector[1] ** 2))
+
+
+def _normalize2(vector: tuple[float, float]) -> tuple[float, float]:
+    magnitude = _norm2(vector)
+    if magnitude <= 1.0e-12:
+        return (1.0, 0.0)
+    return (vector[0] / magnitude, vector[1] / magnitude)
+
+
+def _dot3(lhs: tuple[float, float, float], rhs: tuple[float, float, float]) -> float:
+    return (lhs[0] * rhs[0]) + (lhs[1] * rhs[1]) + (lhs[2] * rhs[2])
+
+
+def _normalize3(vector: tuple[float, float, float]) -> tuple[float, float, float]:
+    magnitude = math.sqrt((vector[0] ** 2) + (vector[1] ** 2) + (vector[2] ** 2))
+    if magnitude <= 1.0e-12:
+        return (0.0, 0.0, 0.0)
+    return (vector[0] / magnitude, vector[1] / magnitude, vector[2] / magnitude)
 
 
 def _tangent_from_angles(inclination_rad: float, azimuth_rad: float) -> tuple[float, float, float]:
@@ -26,10 +50,10 @@ def _tangent_from_angles(inclination_rad: float, azimuth_rad: float) -> tuple[fl
 
 
 def _angle_between(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
-    lhs = _normalize(left)
-    rhs = _normalize(right)
-    dot_product = (lhs[0] * rhs[0]) + (lhs[1] * rhs[1]) + (lhs[2] * rhs[2])
-    return math.acos(_clamp(dot_product, -1.0, 1.0))
+    lhs = _normalize3(left)
+    rhs = _normalize3(right)
+    dot_product = _clamp(_dot3(lhs, rhs), -1.0, 1.0)
+    return math.acos(dot_product)
 
 
 @dataclass(slots=True)
@@ -37,9 +61,16 @@ class CentralizerPlacementModel:
     source_name: str
     type: str
     measured_depth_m: float
-    outer_diameter_m: float
+    support_outer_diameter_m: float
     nominal_restoring_force_n: float
     nominal_running_force_n: float
+    number_of_bows: int
+    angular_orientation_reference_deg: float
+    inner_clearance_to_pipe_m: float
+    blade_power_law_k: float | None
+    blade_power_law_p: float
+    min_contact_diameter_m: float | None
+    max_contact_diameter_m: float | None
     influence_length_m: float
 
 
@@ -54,9 +85,15 @@ class DiscretizedSegmentModel:
     inclination_rad: float
     azimuth_rad: float
     curvature_rad_per_m: float
+    curvature_normal_component_rad_per_m: float
+    curvature_binormal_component_rad_per_m: float
+    frame_rotation_change_rad: float
     tvd_m: float
     northing_m: float
     easting_m: float
+    tangent_north_east_tvd: tuple[float, float, float]
+    normal_north_east_tvd: tuple[float, float, float]
+    binormal_north_east_tvd: tuple[float, float, float]
     reference_hole_diameter_m: float
     fluid_density_kg_per_m3: float
     effective_line_weight_n_per_m: float
@@ -67,14 +104,16 @@ class DiscretizedSegmentModel:
 
 @dataclass(slots=True)
 class LateralEquilibriumStateModel:
-    gravity_lateral_load_n_per_m: float
-    curvature_lateral_load_n_per_m: float
-    equivalent_lateral_load_n_per_m: float
-    equivalent_lateral_force_n: float
+    gravity_lateral_load_n_b_n_per_m: tuple[float, float]
+    curvature_lateral_load_n_b_n_per_m: tuple[float, float]
+    equivalent_lateral_load_n_b_n_per_m: tuple[float, float]
+    equivalent_lateral_force_n_b: tuple[float, float]
+    equivalent_lateral_load_magnitude_n_per_m: float
+    equivalent_lateral_force_magnitude_n: float
     bending_lateral_stiffness_n_per_m: float
     axial_tension_lateral_stiffness_n_per_m: float
     structural_lateral_stiffness_n_per_m: float
-    free_eccentricity_estimate_m: float
+    free_displacement_n_b_m: tuple[float, float]
 
 
 @dataclass(slots=True)
@@ -93,18 +132,17 @@ class GlobalNodeInputModel:
     node_index: int
     measured_depth_m: float
     segment_length_m: float
-    inclination_rad: float
-    curvature_rad_per_m: float
-    effective_line_weight_n_per_m: float
     effective_axial_load_n: float
     bending_stiffness_n_m2: float
     bending_moment_n_m: float
     bending_stress_pa: float
     bending_strain_estimate: float
-    gravity_lateral_load_n_per_m: float
-    curvature_lateral_load_n_per_m: float
-    equivalent_lateral_load_n_per_m: float
-    equivalent_lateral_force_n: float
+    gravity_lateral_load_n_b_n_per_m: tuple[float, float]
+    curvature_lateral_load_n_b_n_per_m: tuple[float, float]
+    equivalent_lateral_load_n_b_n_per_m: tuple[float, float]
+    equivalent_lateral_force_n_b: tuple[float, float]
+    equivalent_lateral_load_magnitude_n_per_m: float
+    equivalent_lateral_force_magnitude_n: float
     bending_lateral_stiffness_n_per_m: float
     axial_tension_lateral_stiffness_n_per_m: float
     structural_lateral_stiffness_n_per_m: float
@@ -115,7 +153,7 @@ class GlobalNodeInputModel:
     pipe_body_clearance_m: float
     support_contact_clearance_m: float
     nearby_centralizer_count: int
-    free_eccentricity_estimate_m: float
+    free_displacement_n_b_m: tuple[float, float]
     section: StringSectionModel
 
 
@@ -123,14 +161,21 @@ class GlobalNodeInputModel:
 class GlobalContactStateModel:
     support_contact_active: bool = False
     pipe_body_contact_active: bool = False
+    contact_direction_n_b: tuple[float, float] = (1.0, 0.0)
 
 
 @dataclass(slots=True)
 class GlobalNodeSolutionModel:
     measured_depth_m: float
+    lateral_displacement_normal_m: float
+    lateral_displacement_binormal_m: float
     eccentricity_estimate_m: float
     eccentricity_ratio: float
     standoff_estimate: float
+    contact_direction_n_b: tuple[float, float]
+    support_normal_reaction_vector_n_b: tuple[float, float]
+    body_normal_reaction_vector_n_b: tuple[float, float]
+    normal_reaction_vector_n_b: tuple[float, float]
     support_normal_reaction_estimate_n: float
     body_normal_reaction_estimate_n: float
     normal_reaction_estimate_n: float
@@ -157,16 +202,29 @@ class MechanicalSegmentResultModel:
     section_name: str
     inclination_rad: float
     curvature_rad_per_m: float
+    curvature_normal_component_rad_per_m: float
+    curvature_binormal_component_rad_per_m: float
+    frame_rotation_change_rad: float
+    tangent_north_east_tvd: tuple[float, float, float]
+    normal_north_east_tvd: tuple[float, float, float]
+    binormal_north_east_tvd: tuple[float, float, float]
     effective_line_weight_n_per_m: float
     effective_axial_load_n: float
     bending_stiffness_n_m2: float
     bending_moment_n_m: float
     bending_stress_pa: float
     bending_strain_estimate: float
+    bending_severity_estimate: float
     gravity_lateral_load_n_per_m: float
     curvature_lateral_load_n_per_m: float
     equivalent_lateral_load_n_per_m: float
     equivalent_lateral_force_n: float
+    gravity_lateral_load_normal_n_per_m: float
+    gravity_lateral_load_binormal_n_per_m: float
+    curvature_lateral_load_normal_n_per_m: float
+    curvature_lateral_load_binormal_n_per_m: float
+    equivalent_lateral_load_normal_n_per_m: float
+    equivalent_lateral_load_binormal_n_per_m: float
     bending_lateral_stiffness_n_per_m: float
     axial_tension_lateral_stiffness_n_per_m: float
     structural_lateral_stiffness_n_per_m: float
@@ -176,14 +234,36 @@ class MechanicalSegmentResultModel:
     support_outer_diameter_m: float
     pipe_body_clearance_m: float
     support_contact_clearance_m: float
+    bow_force_details: list[BowForceDetailModel]
     free_eccentricity_estimate_m: float
+    free_lateral_displacement_normal_m: float
+    free_lateral_displacement_binormal_m: float
+    lateral_displacement_normal_m: float
+    lateral_displacement_binormal_m: float
+    eccentricity_normal_m: float
+    eccentricity_binormal_m: float
     eccentricity_estimate_m: float
     eccentricity_ratio: float
     standoff_estimate: float
+    contact_direction_normal: float
+    contact_direction_binormal: float
+    support_normal_reaction_normal_n: float
+    support_normal_reaction_binormal_n: float
+    body_normal_reaction_normal_n: float
+    body_normal_reaction_binormal_n: float
+    normal_reaction_normal_n: float
+    normal_reaction_binormal_n: float
     support_normal_reaction_estimate_n: float
     body_normal_reaction_estimate_n: float
     normal_reaction_estimate_n: float
     normal_reaction_estimate_n_per_m: float
+    bow_resultant_normal_n: float
+    bow_resultant_binormal_n: float
+    bow_resultant_magnitude_n: float
+    centralizer_axial_friction_n: float
+    centralizer_tangential_friction_n: float
+    centralizer_torque_increment_n_m: float
+    centralizer_effective_contact_radius_m: float
     nearby_centralizer_count: int
     contact_iteration_count: int
     contact_state: str
@@ -211,6 +291,14 @@ class MechanicalSummaryModel:
     contact_segment_count: int
     support_contact_segment_count: int
     pipe_body_contact_segment_count: int
+
+
+@dataclass(slots=True)
+class NormalReactionPointModel:
+    measured_depth_m: float
+    support_normal_reaction_estimate_n: float
+    body_normal_reaction_estimate_n: float
+    normal_reaction_estimate_n: float
 
 
 def _evenly_spaced_positions(start_md_m: float, end_md_m: float, count: int) -> list[float]:
@@ -247,9 +335,16 @@ def expand_centralizer_placements(loaded_case: LoadedCase) -> list[CentralizerPl
                     source_name=spec.name,
                     type=spec.type,
                     measured_depth_m=measured_depth_m,
-                    outer_diameter_m=spec.outer_diameter_m,
+                    support_outer_diameter_m=spec.resolved_support_outer_diameter_m(),
                     nominal_restoring_force_n=spec.nominal_restoring_force_n,
                     nominal_running_force_n=spec.nominal_running_force_n,
+                    number_of_bows=spec.number_of_bows,
+                    angular_orientation_reference_deg=spec.angular_orientation_reference_deg,
+                    inner_clearance_to_pipe_m=spec.inner_clearance_to_pipe_m,
+                    blade_power_law_k=spec.blade_power_law_k,
+                    blade_power_law_p=spec.blade_power_law_p,
+                    min_contact_diameter_m=spec.min_contact_diameter_m,
+                    max_contact_diameter_m=spec.max_contact_diameter_m,
                     influence_length_m=spec.spacing_hint_m,
                 )
             )
@@ -270,6 +365,7 @@ def discretize_case(loaded_case: LoadedCase) -> tuple[list[DiscretizedSegmentMod
     placements = expand_centralizer_placements(loaded_case)
     coverage_start_md_m = loaded_case.string.sections[0].md_start_m
     coverage_end_md_m = loaded_case.string.sections[-1].md_end_m
+    frame_nodes = build_frame_nodes(loaded_case)
     segments: list[DiscretizedSegmentModel] = []
     segment_start_md_m = coverage_start_md_m
 
@@ -284,12 +380,26 @@ def discretize_case(loaded_case: LoadedCase) -> tuple[list[DiscretizedSegmentMod
         start_point = loaded_case.well.interpolate(segment_start_md_m)
         center_point = loaded_case.well.interpolate(center_md_m)
         end_point = loaded_case.well.interpolate(segment_end_md_m)
+        start_frame = interpolate_frame(frame_nodes, segment_start_md_m)
+        center_frame = interpolate_frame(frame_nodes, center_md_m)
+        end_frame = interpolate_frame(frame_nodes, segment_end_md_m)
         start_tangent = _tangent_from_angles(start_point.inclination_rad, start_point.azimuth_rad)
         end_tangent = _tangent_from_angles(end_point.inclination_rad, end_point.azimuth_rad)
         curvature_rad_per_m = (
             0.0
             if segment_length_m <= 0.0
             else _angle_between(start_tangent, end_tangent) / segment_length_m
+        )
+        curvature_vector = (
+            0.0
+            if segment_length_m <= 0.0
+            else (end_frame.tangent_north_east_tvd[0] - start_frame.tangent_north_east_tvd[0]) / segment_length_m,
+            0.0
+            if segment_length_m <= 0.0
+            else (end_frame.tangent_north_east_tvd[1] - start_frame.tangent_north_east_tvd[1]) / segment_length_m,
+            0.0
+            if segment_length_m <= 0.0
+            else (end_frame.tangent_north_east_tvd[2] - start_frame.tangent_north_east_tvd[2]) / segment_length_m,
         )
         section_index, section = _section_for_md(loaded_case, center_md_m)
 
@@ -304,9 +414,19 @@ def discretize_case(loaded_case: LoadedCase) -> tuple[list[DiscretizedSegmentMod
                 inclination_rad=center_point.inclination_rad,
                 azimuth_rad=center_point.azimuth_rad,
                 curvature_rad_per_m=curvature_rad_per_m,
+                curvature_normal_component_rad_per_m=_dot3(
+                    curvature_vector, center_frame.normal_north_east_tvd
+                ),
+                curvature_binormal_component_rad_per_m=_dot3(
+                    curvature_vector, center_frame.binormal_north_east_tvd
+                ),
+                frame_rotation_change_rad=center_frame.frame_rotation_change_rad,
                 tvd_m=center_point.tvd_m,
                 northing_m=center_point.northing_m,
                 easting_m=center_point.easting_m,
+                tangent_north_east_tvd=center_frame.tangent_north_east_tvd,
+                normal_north_east_tvd=center_frame.normal_north_east_tvd,
+                binormal_north_east_tvd=center_frame.binormal_north_east_tvd,
                 reference_hole_diameter_m=loaded_case.reference_hole_diameter_m,
                 fluid_density_kg_per_m3=loaded_case.fluid_density_kg_per_m3,
                 effective_line_weight_n_per_m=section.effective_line_weight_n_per_m(
@@ -322,19 +442,47 @@ def discretize_case(loaded_case: LoadedCase) -> tuple[list[DiscretizedSegmentMod
     return segments, placements
 
 
-def _evaluate_lateral_equilibrium(
+def compute_buoyant_axial_load_profile(
+    segments: list[DiscretizedSegmentModel],
+) -> tuple[list[float], float]:
+    load_below_n = 0.0
+    axial_loads_n = [0.0 for _ in segments]
+
+    for segment_index in range(len(segments) - 1, -1, -1):
+        segment = segments[segment_index]
+        tangential_weight_n = (
+            segment.effective_line_weight_n_per_m
+            * math.cos(segment.inclination_rad)
+            * segment.segment_length_m
+        )
+        axial_loads_n[segment_index] = load_below_n + (0.5 * tangential_weight_n)
+        load_below_n += tangential_weight_n
+
+    return axial_loads_n, load_below_n
+
+
+def _evaluate_vector_lateral_equilibrium(
     segment: DiscretizedSegmentModel,
     effective_axial_load_n: float,
 ) -> LateralEquilibriumStateModel:
     segment_length_m = max(segment.segment_length_m, 1.0e-6)
-    gravity_lateral_load_n_per_m = abs(
-        segment.effective_line_weight_n_per_m * math.sin(segment.inclination_rad)
+    gravity_vector_north_east_tvd = (0.0, 0.0, segment.effective_line_weight_n_per_m)
+    gravity_lateral_load_n_b_n_per_m = (
+        _dot3(gravity_vector_north_east_tvd, segment.normal_north_east_tvd),
+        _dot3(gravity_vector_north_east_tvd, segment.binormal_north_east_tvd),
     )
-    curvature_lateral_load_n_per_m = max(effective_axial_load_n, 0.0) * segment.curvature_rad_per_m
-    equivalent_lateral_load_n_per_m = (
-        gravity_lateral_load_n_per_m + curvature_lateral_load_n_per_m
+    curvature_lateral_load_n_b_n_per_m = (
+        max(effective_axial_load_n, 0.0) * segment.curvature_normal_component_rad_per_m,
+        max(effective_axial_load_n, 0.0) * segment.curvature_binormal_component_rad_per_m,
     )
-    equivalent_lateral_force_n = equivalent_lateral_load_n_per_m * segment.segment_length_m
+    equivalent_lateral_load_n_b_n_per_m = (
+        gravity_lateral_load_n_b_n_per_m[0] + curvature_lateral_load_n_b_n_per_m[0],
+        gravity_lateral_load_n_b_n_per_m[1] + curvature_lateral_load_n_b_n_per_m[1],
+    )
+    equivalent_lateral_force_n_b = (
+        equivalent_lateral_load_n_b_n_per_m[0] * segment.segment_length_m,
+        equivalent_lateral_load_n_b_n_per_m[1] * segment.segment_length_m,
+    )
     bending_lateral_stiffness_n_per_m = 0.0
     if segment.bending_stiffness_n_m2 > 0.0:
         bending_lateral_stiffness_n_per_m = (
@@ -346,20 +494,25 @@ def _evaluate_lateral_equilibrium(
     structural_lateral_stiffness_n_per_m = (
         bending_lateral_stiffness_n_per_m + axial_tension_lateral_stiffness_n_per_m
     )
-    free_eccentricity_estimate_m = (
+    free_displacement_n_b_m = (
         0.0
         if structural_lateral_stiffness_n_per_m <= 0.0
-        else equivalent_lateral_force_n / structural_lateral_stiffness_n_per_m
+        else equivalent_lateral_force_n_b[0] / structural_lateral_stiffness_n_per_m,
+        0.0
+        if structural_lateral_stiffness_n_per_m <= 0.0
+        else equivalent_lateral_force_n_b[1] / structural_lateral_stiffness_n_per_m,
     )
     return LateralEquilibriumStateModel(
-        gravity_lateral_load_n_per_m=gravity_lateral_load_n_per_m,
-        curvature_lateral_load_n_per_m=curvature_lateral_load_n_per_m,
-        equivalent_lateral_load_n_per_m=equivalent_lateral_load_n_per_m,
-        equivalent_lateral_force_n=equivalent_lateral_force_n,
+        gravity_lateral_load_n_b_n_per_m=gravity_lateral_load_n_b_n_per_m,
+        curvature_lateral_load_n_b_n_per_m=curvature_lateral_load_n_b_n_per_m,
+        equivalent_lateral_load_n_b_n_per_m=equivalent_lateral_load_n_b_n_per_m,
+        equivalent_lateral_force_n_b=equivalent_lateral_force_n_b,
+        equivalent_lateral_load_magnitude_n_per_m=_norm2(equivalent_lateral_load_n_b_n_per_m),
+        equivalent_lateral_force_magnitude_n=_norm2(equivalent_lateral_force_n_b),
         bending_lateral_stiffness_n_per_m=bending_lateral_stiffness_n_per_m,
         axial_tension_lateral_stiffness_n_per_m=axial_tension_lateral_stiffness_n_per_m,
         structural_lateral_stiffness_n_per_m=structural_lateral_stiffness_n_per_m,
-        free_eccentricity_estimate_m=free_eccentricity_estimate_m,
+        free_displacement_n_b_m=free_displacement_n_b_m,
     )
 
 
@@ -383,34 +536,39 @@ def _evaluate_support_effect(
 
     hole_radius_m = 0.5 * segment.reference_hole_diameter_m
     pipe_body_clearance_m = max(0.0, hole_radius_m - segment.section.outer_radius_m)
-    reference_deflection_m = max(
-        pipe_body_clearance_m,
-        max(0.05 * segment.section.outer_diameter_m, 1.0e-4),
-    )
 
     nearby_centralizer_count = 0
     support_present = False
     centering_stiffness_n_per_m = 0.0
+    support_contact_clearance_m = 0.0
     for placement in placements:
-        half_influence_length_m = max(
-            0.5 * placement.influence_length_m,
-            0.5 * segment.segment_length_m,
+        proximity_weight = placement_proximity_weight(
+            placement,
+            segment.measured_depth_center_m,
+            segment.segment_length_m,
         )
-        distance_to_segment_center_m = abs(
-            placement.measured_depth_m - segment.measured_depth_center_m
-        )
-        if distance_to_segment_center_m > half_influence_length_m:
+        if proximity_weight <= 0.0:
             continue
 
-        proximity_weight = max(0.0, 1.0 - (distance_to_segment_center_m / half_influence_length_m))
         nearby_centralizer_count += 1
         support_present = True
-        support_outer_diameter_m = max(support_outer_diameter_m, placement.outer_diameter_m)
+        support_outer_diameter_m = max(
+            support_outer_diameter_m,
+            centralizer_effective_contact_diameter_m(placement),
+        )
         centering_stiffness_n_per_m += (
-            proximity_weight * placement.nominal_restoring_force_n / reference_deflection_m
+            proximity_weight * equivalent_bow_support_stiffness_n_per_m(placement, hole_radius_m)
+        )
+        placement_support_contact_clearance_m = bow_contact_onset_clearance_m(
+            placement,
+            hole_radius_m,
+        )
+        support_contact_clearance_m = (
+            placement_support_contact_clearance_m
+            if nearby_centralizer_count == 1
+            else min(support_contact_clearance_m, placement_support_contact_clearance_m)
         )
 
-    support_contact_clearance_m = max(0.0, hole_radius_m - (0.5 * support_outer_diameter_m))
     support_contact_penalty_n_per_m = 0.0
     if support_present:
         support_contact_penalty_n_per_m = contact_penalty_scale * max(
@@ -431,28 +589,22 @@ def _evaluate_support_effect(
 
 def build_global_node_inputs(
     loaded_case: LoadedCase,
+    effective_axial_loads_n: list[float] | None = None,
 ) -> tuple[
     list[DiscretizedSegmentModel],
     list[CentralizerPlacementModel],
     list[GlobalNodeInputModel],
 ]:
     segments, placements = discretize_case(loaded_case)
-    load_below_n = 0.0
-    axial_loads_n = [0.0 for _ in segments]
-
-    for segment_index in range(len(segments) - 1, -1, -1):
-        segment = segments[segment_index]
-        tangential_weight_n = (
-            segment.effective_line_weight_n_per_m
-            * math.cos(segment.inclination_rad)
-            * segment.segment_length_m
-        )
-        axial_loads_n[segment_index] = load_below_n + (0.5 * tangential_weight_n)
-        load_below_n += tangential_weight_n
+    axial_loads_n, _ = compute_buoyant_axial_load_profile(segments)
+    if effective_axial_loads_n is not None:
+        if len(effective_axial_loads_n) != len(segments):
+            raise ValueError("Mechanical solver axial profile must match the discretized segment count.")
+        axial_loads_n = list(effective_axial_loads_n)
 
     nodes: list[GlobalNodeInputModel] = []
     for segment, effective_axial_load_n in zip(segments, axial_loads_n, strict=True):
-        lateral_state = _evaluate_lateral_equilibrium(segment, effective_axial_load_n)
+        lateral_state = _evaluate_vector_lateral_equilibrium(segment, effective_axial_load_n)
         support_effect = _evaluate_support_effect(
             segment,
             placements,
@@ -468,9 +620,6 @@ def build_global_node_inputs(
                 node_index=segment.segment_index,
                 measured_depth_m=segment.measured_depth_center_m,
                 segment_length_m=segment.segment_length_m,
-                inclination_rad=segment.inclination_rad,
-                curvature_rad_per_m=segment.curvature_rad_per_m,
-                effective_line_weight_n_per_m=segment.effective_line_weight_n_per_m,
                 effective_axial_load_n=effective_axial_load_n,
                 bending_stiffness_n_m2=segment.bending_stiffness_n_m2,
                 bending_moment_n_m=segment.bending_stiffness_n_m2 * segment.curvature_rad_per_m,
@@ -480,25 +629,25 @@ def build_global_node_inputs(
                     * segment.section.outer_radius_m
                 ),
                 bending_strain_estimate=segment.curvature_rad_per_m * segment.section.outer_radius_m,
-                gravity_lateral_load_n_per_m=lateral_state.gravity_lateral_load_n_per_m,
-                curvature_lateral_load_n_per_m=lateral_state.curvature_lateral_load_n_per_m,
-                equivalent_lateral_load_n_per_m=lateral_state.equivalent_lateral_load_n_per_m,
-                equivalent_lateral_force_n=lateral_state.equivalent_lateral_force_n,
+                gravity_lateral_load_n_b_n_per_m=lateral_state.gravity_lateral_load_n_b_n_per_m,
+                curvature_lateral_load_n_b_n_per_m=lateral_state.curvature_lateral_load_n_b_n_per_m,
+                equivalent_lateral_load_n_b_n_per_m=lateral_state.equivalent_lateral_load_n_b_n_per_m,
+                equivalent_lateral_force_n_b=lateral_state.equivalent_lateral_force_n_b,
+                equivalent_lateral_load_magnitude_n_per_m=lateral_state.equivalent_lateral_load_magnitude_n_per_m,
+                equivalent_lateral_force_magnitude_n=lateral_state.equivalent_lateral_force_magnitude_n,
                 bending_lateral_stiffness_n_per_m=lateral_state.bending_lateral_stiffness_n_per_m,
                 axial_tension_lateral_stiffness_n_per_m=lateral_state.axial_tension_lateral_stiffness_n_per_m,
                 structural_lateral_stiffness_n_per_m=lateral_state.structural_lateral_stiffness_n_per_m,
                 centralizer_centering_stiffness_n_per_m=support_effect.centering_stiffness_n_per_m,
                 support_contact_penalty_n_per_m=support_effect.support_contact_penalty_n_per_m,
                 body_contact_penalty_n_per_m=(
-                    2.0
-                    * loaded_case.contact_penalty_scale
-                    * max(base_lateral_stiffness_n_per_m, 1.0)
+                    2.0 * loaded_case.contact_penalty_scale * max(base_lateral_stiffness_n_per_m, 1.0)
                 ),
                 support_outer_diameter_m=support_effect.support_outer_diameter_m,
                 pipe_body_clearance_m=support_effect.pipe_body_clearance_m,
                 support_contact_clearance_m=support_effect.support_contact_clearance_m,
                 nearby_centralizer_count=support_effect.nearby_centralizer_count,
-                free_eccentricity_estimate_m=lateral_state.free_eccentricity_estimate_m,
+                free_displacement_n_b_m=lateral_state.free_displacement_n_b_m,
                 section=segment.section,
             )
         )
@@ -511,47 +660,61 @@ def assemble_global_linear_system(
     contact_states: list[GlobalContactStateModel],
 ) -> tuple[list[list[float]], list[float]]:
     if len(nodes) != len(contact_states):
-        raise ValueError("Global assembly requires one contact state per node.")
+        raise ValueError("Vector global assembly requires one contact state per node.")
 
-    node_count = len(nodes)
-    stiffness_matrix = [[0.0 for _ in range(node_count)] for _ in range(node_count)]
-    load_vector = [0.0 for _ in range(node_count)]
+    dof_count = 2 * len(nodes)
+    stiffness_matrix = [[0.0 for _ in range(dof_count)] for _ in range(dof_count)]
+    load_vector = [0.0 for _ in range(dof_count)]
+
+    def dof_index(node_index: int, component_index: int) -> int:
+        return (2 * node_index) + component_index
 
     for node_index, node in enumerate(nodes):
-        load_vector[node_index] += node.equivalent_lateral_force_n
-        stiffness_matrix[node_index][node_index] += node.centralizer_centering_stiffness_n_per_m
+        state = contact_states[node_index]
+        for component_index in range(2):
+            component_dof = dof_index(node_index, component_index)
+            load_vector[component_dof] += node.equivalent_lateral_force_n_b[component_index]
+            stiffness_matrix[component_dof][component_dof] += node.centralizer_centering_stiffness_n_per_m
 
-        if contact_states[node_index].support_contact_active:
-            stiffness_matrix[node_index][node_index] += node.support_contact_penalty_n_per_m
-            load_vector[node_index] += (
-                node.support_contact_penalty_n_per_m * node.support_contact_clearance_m
-            )
+        def add_contact_penalty(penalty_n_per_m: float, clearance_m: float) -> None:
+            for row_component in range(2):
+                for column_component in range(2):
+                    stiffness_matrix[dof_index(node_index, row_component)][
+                        dof_index(node_index, column_component)
+                    ] += (
+                        penalty_n_per_m
+                        * state.contact_direction_n_b[row_component]
+                        * state.contact_direction_n_b[column_component]
+                    )
+                load_vector[dof_index(node_index, row_component)] += (
+                    penalty_n_per_m * clearance_m * state.contact_direction_n_b[row_component]
+                )
 
-        if contact_states[node_index].pipe_body_contact_active:
-            stiffness_matrix[node_index][node_index] += node.body_contact_penalty_n_per_m
-            load_vector[node_index] += node.body_contact_penalty_n_per_m * node.pipe_body_clearance_m
+        if state.support_contact_active:
+            add_contact_penalty(node.support_contact_penalty_n_per_m, node.support_contact_clearance_m)
+        if state.pipe_body_contact_active:
+            add_contact_penalty(node.body_contact_penalty_n_per_m, node.pipe_body_clearance_m)
 
-    for node_index in range(1, node_count):
+    for node_index in range(1, len(nodes)):
         spacing_m = max(
             nodes[node_index].measured_depth_m - nodes[node_index - 1].measured_depth_m,
             1.0e-6,
         )
         effective_axial_load_n = max(
             0.0,
-            0.5
-            * (
-                nodes[node_index].effective_axial_load_n
-                + nodes[node_index - 1].effective_axial_load_n
-            ),
+            0.5 * (nodes[node_index].effective_axial_load_n + nodes[node_index - 1].effective_axial_load_n),
         )
         axial_coefficient = effective_axial_load_n / spacing_m
 
-        stiffness_matrix[node_index - 1][node_index - 1] += axial_coefficient
-        stiffness_matrix[node_index - 1][node_index] -= axial_coefficient
-        stiffness_matrix[node_index][node_index - 1] -= axial_coefficient
-        stiffness_matrix[node_index][node_index] += axial_coefficient
+        for component_index in range(2):
+            lower_dof = dof_index(node_index - 1, component_index)
+            upper_dof = dof_index(node_index, component_index)
+            stiffness_matrix[lower_dof][lower_dof] += axial_coefficient
+            stiffness_matrix[lower_dof][upper_dof] -= axial_coefficient
+            stiffness_matrix[upper_dof][lower_dof] -= axial_coefficient
+            stiffness_matrix[upper_dof][upper_dof] += axial_coefficient
 
-    for node_index in range(1, node_count - 1):
+    for node_index in range(1, len(nodes) - 1):
         spacing_left_m = max(
             nodes[node_index].measured_depth_m - nodes[node_index - 1].measured_depth_m,
             1.0e-6,
@@ -566,29 +729,35 @@ def assemble_global_linear_system(
             1.0e-6,
         )
 
-        stiffness_matrix[node_index - 1][node_index - 1] += bending_coefficient
-        stiffness_matrix[node_index - 1][node_index] -= 2.0 * bending_coefficient
-        stiffness_matrix[node_index - 1][node_index + 1] += bending_coefficient
-        stiffness_matrix[node_index][node_index - 1] -= 2.0 * bending_coefficient
-        stiffness_matrix[node_index][node_index] += 4.0 * bending_coefficient
-        stiffness_matrix[node_index][node_index + 1] -= 2.0 * bending_coefficient
-        stiffness_matrix[node_index + 1][node_index - 1] += bending_coefficient
-        stiffness_matrix[node_index + 1][node_index] -= 2.0 * bending_coefficient
-        stiffness_matrix[node_index + 1][node_index + 1] += bending_coefficient
+        for component_index in range(2):
+            lower_dof = dof_index(node_index - 1, component_index)
+            middle_dof = dof_index(node_index, component_index)
+            upper_dof = dof_index(node_index + 1, component_index)
+            stiffness_matrix[lower_dof][lower_dof] += bending_coefficient
+            stiffness_matrix[lower_dof][middle_dof] -= 2.0 * bending_coefficient
+            stiffness_matrix[lower_dof][upper_dof] += bending_coefficient
+            stiffness_matrix[middle_dof][lower_dof] -= 2.0 * bending_coefficient
+            stiffness_matrix[middle_dof][middle_dof] += 4.0 * bending_coefficient
+            stiffness_matrix[middle_dof][upper_dof] -= 2.0 * bending_coefficient
+            stiffness_matrix[upper_dof][lower_dof] += bending_coefficient
+            stiffness_matrix[upper_dof][middle_dof] -= 2.0 * bending_coefficient
+            stiffness_matrix[upper_dof][upper_dof] += bending_coefficient
 
-    def apply_centered_end_boundary(boundary_index: int) -> None:
-        for row_index in range(node_count):
-            stiffness_matrix[row_index][boundary_index] = 0.0
-        for column_index in range(node_count):
-            stiffness_matrix[boundary_index][column_index] = 0.0
-        stiffness_matrix[boundary_index][boundary_index] = 1.0
-        load_vector[boundary_index] = 0.0
+    def apply_centered_end_boundary(node_index: int) -> None:
+        for component_index in range(2):
+            boundary_dof = dof_index(node_index, component_index)
+            for row_index in range(dof_count):
+                stiffness_matrix[row_index][boundary_dof] = 0.0
+            for column_index in range(dof_count):
+                stiffness_matrix[boundary_dof][column_index] = 0.0
+            stiffness_matrix[boundary_dof][boundary_dof] = 1.0
+            load_vector[boundary_dof] = 0.0
 
-    if node_count == 1:
+    if len(nodes) == 1:
         apply_centered_end_boundary(0)
-    elif node_count > 1:
+    elif len(nodes) > 1:
         apply_centered_end_boundary(0)
-        apply_centered_end_boundary(node_count - 1)
+        apply_centered_end_boundary(len(nodes) - 1)
 
     return stiffness_matrix, load_vector
 
@@ -611,7 +780,7 @@ def _solve_dense_linear_system(
                 best_row_index = row_index
 
         if best_pivot_value <= 1.0e-12:
-            raise ValueError("Global solver encountered a singular linear system.")
+            raise ValueError("Vector global solver encountered a singular linear system.")
 
         if best_row_index != pivot_index:
             working_matrix[pivot_index], working_matrix[best_row_index] = (
@@ -645,63 +814,107 @@ def _solve_dense_linear_system(
     return solution
 
 
+def _select_contact_direction(
+    displacement_n_b_m: tuple[float, float],
+    equivalent_force_n_b: tuple[float, float],
+) -> tuple[float, float]:
+    if _norm2(displacement_n_b_m) > 1.0e-12:
+        return _normalize2(displacement_n_b_m)
+    if _norm2(equivalent_force_n_b) > 1.0e-12:
+        return _normalize2(equivalent_force_n_b)
+    return (1.0, 0.0)
+
+
 def run_global_lateral_solver(
     nodes: list[GlobalNodeInputModel],
     *,
     max_iterations: int,
 ) -> GlobalSolverResultModel:
     contact_states = [GlobalContactStateModel() for _ in nodes]
-    displacements_m = [0.0 for _ in nodes]
+    displacements_n_b_m = [(0.0, 0.0) for _ in nodes]
     final_update_norm_m = 0.0
     iteration_count = 0
 
     for iteration_index in range(max_iterations):
         stiffness_matrix, load_vector = assemble_global_linear_system(nodes, contact_states)
-        updated_displacements_m = _solve_dense_linear_system(stiffness_matrix, load_vector)
+        updated_solution = _solve_dense_linear_system(stiffness_matrix, load_vector)
 
         final_update_norm_m = 0.0
         contact_state_changed = False
+        contact_direction_changed = False
         for node_index, node in enumerate(nodes):
-            updated_eccentricity_m = max(0.0, updated_displacements_m[node_index])
-            final_update_norm_m = max(
-                final_update_norm_m,
-                abs(updated_eccentricity_m - displacements_m[node_index]),
+            updated_displacement_n_b_m = (
+                updated_solution[2 * node_index],
+                updated_solution[(2 * node_index) + 1],
+            )
+            displacement_update = (
+                updated_displacement_n_b_m[0] - displacements_n_b_m[node_index][0],
+                updated_displacement_n_b_m[1] - displacements_n_b_m[node_index][1],
+            )
+            final_update_norm_m = max(final_update_norm_m, _norm2(displacement_update))
+            eccentricity_magnitude_m = _norm2(updated_displacement_n_b_m)
+            contact_direction_n_b = _select_contact_direction(
+                updated_displacement_n_b_m,
+                node.equivalent_lateral_force_n_b,
             )
             support_contact_active = (
                 node.support_contact_penalty_n_per_m > 0.0
-                and updated_eccentricity_m > node.support_contact_clearance_m
+                and eccentricity_magnitude_m > node.support_contact_clearance_m
             )
-            pipe_body_contact_active = updated_eccentricity_m > node.pipe_body_clearance_m
+            pipe_body_contact_active = eccentricity_magnitude_m > node.pipe_body_clearance_m
+            direction_delta = (
+                contact_direction_n_b[0] - contact_states[node_index].contact_direction_n_b[0],
+                contact_direction_n_b[1] - contact_states[node_index].contact_direction_n_b[1],
+            )
+
             if (
                 support_contact_active != contact_states[node_index].support_contact_active
                 or pipe_body_contact_active != contact_states[node_index].pipe_body_contact_active
             ):
                 contact_state_changed = True
+            if _norm2(direction_delta) > 1.0e-6:
+                contact_direction_changed = True
 
             contact_states[node_index].support_contact_active = support_contact_active
             contact_states[node_index].pipe_body_contact_active = pipe_body_contact_active
-            displacements_m[node_index] = updated_eccentricity_m
+            contact_states[node_index].contact_direction_n_b = contact_direction_n_b
+            displacements_n_b_m[node_index] = updated_displacement_n_b_m
 
         iteration_count = iteration_index + 1
-        if not contact_state_changed and final_update_norm_m <= 1.0e-8:
+        if not contact_state_changed and not contact_direction_changed and final_update_norm_m <= 1.0e-8:
             break
 
     node_solutions: list[GlobalNodeSolutionModel] = []
     for node_index, node in enumerate(nodes):
-        eccentricity_estimate_m = max(0.0, displacements_m[node_index])
-        support_normal_reaction_estimate_n = max(
-            0.0,
-            node.support_contact_penalty_n_per_m
-            * (eccentricity_estimate_m - node.support_contact_clearance_m),
+        displacement_n_b_m = displacements_n_b_m[node_index]
+        eccentricity_estimate_m = _norm2(displacement_n_b_m)
+        contact_direction_n_b = _select_contact_direction(
+            displacement_n_b_m,
+            node.equivalent_lateral_force_n_b,
         )
-        body_normal_reaction_estimate_n = max(
-            0.0,
-            node.body_contact_penalty_n_per_m
-            * (eccentricity_estimate_m - node.pipe_body_clearance_m),
+        support_penetration_m = (
+            0.0
+            if node.support_contact_penalty_n_per_m <= 0.0
+            else max(0.0, eccentricity_estimate_m - node.support_contact_clearance_m)
         )
-        normal_reaction_estimate_n = (
-            support_normal_reaction_estimate_n + body_normal_reaction_estimate_n
+        body_penetration_m = max(0.0, eccentricity_estimate_m - node.pipe_body_clearance_m)
+        support_normal_reaction_estimate_n = (
+            node.support_contact_penalty_n_per_m * support_penetration_m
         )
+        body_normal_reaction_estimate_n = node.body_contact_penalty_n_per_m * body_penetration_m
+        support_normal_reaction_vector_n_b = (
+            support_normal_reaction_estimate_n * contact_direction_n_b[0],
+            support_normal_reaction_estimate_n * contact_direction_n_b[1],
+        )
+        body_normal_reaction_vector_n_b = (
+            body_normal_reaction_estimate_n * contact_direction_n_b[0],
+            body_normal_reaction_estimate_n * contact_direction_n_b[1],
+        )
+        normal_reaction_vector_n_b = (
+            support_normal_reaction_vector_n_b[0] + body_normal_reaction_vector_n_b[0],
+            support_normal_reaction_vector_n_b[1] + body_normal_reaction_vector_n_b[1],
+        )
+        normal_reaction_estimate_n = _norm2(normal_reaction_vector_n_b)
         if node.pipe_body_clearance_m > 0.0:
             eccentricity_ratio = eccentricity_estimate_m / node.pipe_body_clearance_m
             standoff_estimate = _clamp(1.0 - eccentricity_ratio, 0.0, 1.0)
@@ -721,9 +934,15 @@ def run_global_lateral_solver(
         node_solutions.append(
             GlobalNodeSolutionModel(
                 measured_depth_m=node.measured_depth_m,
+                lateral_displacement_normal_m=displacement_n_b_m[0],
+                lateral_displacement_binormal_m=displacement_n_b_m[1],
                 eccentricity_estimate_m=eccentricity_estimate_m,
                 eccentricity_ratio=eccentricity_ratio,
                 standoff_estimate=standoff_estimate,
+                contact_direction_n_b=contact_direction_n_b,
+                support_normal_reaction_vector_n_b=support_normal_reaction_vector_n_b,
+                body_normal_reaction_vector_n_b=body_normal_reaction_vector_n_b,
+                normal_reaction_vector_n_b=normal_reaction_vector_n_b,
                 support_normal_reaction_estimate_n=support_normal_reaction_estimate_n,
                 body_normal_reaction_estimate_n=body_normal_reaction_estimate_n,
                 normal_reaction_estimate_n=normal_reaction_estimate_n,
@@ -747,7 +966,21 @@ def run_global_lateral_solver(
 def run_mechanical_baseline(
     loaded_case: LoadedCase,
 ) -> tuple[MechanicalSummaryModel, list[MechanicalSegmentResultModel], list[CentralizerPlacementModel]]:
-    segments, placements, nodes = build_global_node_inputs(loaded_case)
+    segments, _ = discretize_case(loaded_case)
+    axial_profile_n, top_effective_axial_load_n = compute_buoyant_axial_load_profile(segments)
+    return run_mechanical_with_axial_profile(
+        loaded_case,
+        axial_profile_n,
+        top_effective_axial_load_n,
+    )
+
+
+def run_mechanical_with_axial_profile(
+    loaded_case: LoadedCase,
+    effective_axial_loads_n: list[float],
+    top_effective_axial_load_n: float,
+) -> tuple[MechanicalSummaryModel, list[MechanicalSegmentResultModel], list[CentralizerPlacementModel]]:
+    segments, placements, nodes = build_global_node_inputs(loaded_case, effective_axial_loads_n)
     if not nodes:
         return (
             MechanicalSummaryModel(
@@ -755,7 +988,7 @@ def run_mechanical_baseline(
                 target_segment_length_m=loaded_case.discretization_step_m,
                 global_solver_iteration_count=0,
                 global_solver_final_update_norm_m=0.0,
-                top_effective_axial_load_n=0.0,
+                top_effective_axial_load_n=max(0.0, top_effective_axial_load_n),
                 minimum_effective_axial_load_n=0.0,
                 maximum_effective_axial_load_n=0.0,
                 maximum_bending_moment_n_m=0.0,
@@ -774,13 +1007,8 @@ def run_mechanical_baseline(
             placements,
         )
 
-    global_result = run_global_lateral_solver(
-        nodes,
-        max_iterations=loaded_case.global_solver_max_iterations,
-    )
-
+    global_result = run_global_lateral_solver(nodes, max_iterations=loaded_case.global_solver_max_iterations)
     profile: list[MechanicalSegmentResultModel] = []
-    top_effective_axial_load_n = 0.0
     minimum_effective_axial_load_n = float("inf")
     maximum_effective_axial_load_n = float("-inf")
     maximum_bending_moment_n_m = 0.0
@@ -796,12 +1024,25 @@ def run_mechanical_baseline(
     pipe_body_contact_segment_count = 0
 
     for segment, node, solution in zip(segments, nodes, global_result.node_solutions, strict=True):
-        tangential_weight_n = (
-            segment.effective_line_weight_n_per_m
-            * math.cos(segment.inclination_rad)
-            * segment.segment_length_m
+        bow_segment_result = evaluate_bow_spring_segment_result(
+            segment,
+            placements,
+            (
+                solution.lateral_displacement_normal_m,
+                solution.lateral_displacement_binormal_m,
+            ),
         )
-        top_effective_axial_load_n += tangential_weight_n
+        total_normal_reaction_vector_n_b = (
+            bow_segment_result.bow_resultant_vector_n_b[0] + solution.body_normal_reaction_vector_n_b[0],
+            bow_segment_result.bow_resultant_vector_n_b[1] + solution.body_normal_reaction_vector_n_b[1],
+        )
+        total_normal_reaction_magnitude_n = _norm2(total_normal_reaction_vector_n_b)
+        contact_direction_n_b = solution.contact_direction_n_b
+        if total_normal_reaction_magnitude_n > 1.0e-12:
+            contact_direction_n_b = (
+                total_normal_reaction_vector_n_b[0] / total_normal_reaction_magnitude_n,
+                total_normal_reaction_vector_n_b[1] / total_normal_reaction_magnitude_n,
+            )
 
         result = MechanicalSegmentResultModel(
             measured_depth_start_m=segment.measured_depth_start_m,
@@ -811,63 +1052,104 @@ def run_mechanical_baseline(
             section_name=segment.section.name,
             inclination_rad=segment.inclination_rad,
             curvature_rad_per_m=segment.curvature_rad_per_m,
+            curvature_normal_component_rad_per_m=segment.curvature_normal_component_rad_per_m,
+            curvature_binormal_component_rad_per_m=segment.curvature_binormal_component_rad_per_m,
+            frame_rotation_change_rad=segment.frame_rotation_change_rad,
+            tangent_north_east_tvd=segment.tangent_north_east_tvd,
+            normal_north_east_tvd=segment.normal_north_east_tvd,
+            binormal_north_east_tvd=segment.binormal_north_east_tvd,
             effective_line_weight_n_per_m=segment.effective_line_weight_n_per_m,
             effective_axial_load_n=node.effective_axial_load_n,
             bending_stiffness_n_m2=segment.bending_stiffness_n_m2,
             bending_moment_n_m=node.bending_moment_n_m,
             bending_stress_pa=node.bending_stress_pa,
             bending_strain_estimate=node.bending_strain_estimate,
-            gravity_lateral_load_n_per_m=node.gravity_lateral_load_n_per_m,
-            curvature_lateral_load_n_per_m=node.curvature_lateral_load_n_per_m,
-            equivalent_lateral_load_n_per_m=node.equivalent_lateral_load_n_per_m,
-            equivalent_lateral_force_n=node.equivalent_lateral_force_n,
+            bending_severity_estimate=node.bending_strain_estimate,
+            gravity_lateral_load_n_per_m=_norm2(node.gravity_lateral_load_n_b_n_per_m),
+            curvature_lateral_load_n_per_m=_norm2(node.curvature_lateral_load_n_b_n_per_m),
+            equivalent_lateral_load_n_per_m=node.equivalent_lateral_load_magnitude_n_per_m,
+            equivalent_lateral_force_n=node.equivalent_lateral_force_magnitude_n,
+            gravity_lateral_load_normal_n_per_m=node.gravity_lateral_load_n_b_n_per_m[0],
+            gravity_lateral_load_binormal_n_per_m=node.gravity_lateral_load_n_b_n_per_m[1],
+            curvature_lateral_load_normal_n_per_m=node.curvature_lateral_load_n_b_n_per_m[0],
+            curvature_lateral_load_binormal_n_per_m=node.curvature_lateral_load_n_b_n_per_m[1],
+            equivalent_lateral_load_normal_n_per_m=node.equivalent_lateral_load_n_b_n_per_m[0],
+            equivalent_lateral_load_binormal_n_per_m=node.equivalent_lateral_load_n_b_n_per_m[1],
             bending_lateral_stiffness_n_per_m=node.bending_lateral_stiffness_n_per_m,
             axial_tension_lateral_stiffness_n_per_m=node.axial_tension_lateral_stiffness_n_per_m,
             structural_lateral_stiffness_n_per_m=node.structural_lateral_stiffness_n_per_m,
             centralizer_centering_stiffness_n_per_m=node.centralizer_centering_stiffness_n_per_m,
             support_contact_penalty_n_per_m=node.support_contact_penalty_n_per_m,
             body_contact_penalty_n_per_m=node.body_contact_penalty_n_per_m,
-            support_outer_diameter_m=node.support_outer_diameter_m,
+            support_outer_diameter_m=(
+                bow_segment_result.support_outer_diameter_m
+                if bow_segment_result.support_present
+                else node.support_outer_diameter_m
+            ),
             pipe_body_clearance_m=node.pipe_body_clearance_m,
-            support_contact_clearance_m=node.support_contact_clearance_m,
-            free_eccentricity_estimate_m=node.free_eccentricity_estimate_m,
+            support_contact_clearance_m=(
+                bow_segment_result.support_contact_clearance_m
+                if bow_segment_result.support_present
+                else node.support_contact_clearance_m
+            ),
+            bow_force_details=list(bow_segment_result.bow_force_details),
+            free_eccentricity_estimate_m=_norm2(node.free_displacement_n_b_m),
+            free_lateral_displacement_normal_m=node.free_displacement_n_b_m[0],
+            free_lateral_displacement_binormal_m=node.free_displacement_n_b_m[1],
+            lateral_displacement_normal_m=solution.lateral_displacement_normal_m,
+            lateral_displacement_binormal_m=solution.lateral_displacement_binormal_m,
+            eccentricity_normal_m=solution.lateral_displacement_normal_m,
+            eccentricity_binormal_m=solution.lateral_displacement_binormal_m,
             eccentricity_estimate_m=solution.eccentricity_estimate_m,
             eccentricity_ratio=solution.eccentricity_ratio,
             standoff_estimate=solution.standoff_estimate,
-            support_normal_reaction_estimate_n=solution.support_normal_reaction_estimate_n,
+            contact_direction_normal=contact_direction_n_b[0],
+            contact_direction_binormal=contact_direction_n_b[1],
+            support_normal_reaction_normal_n=bow_segment_result.bow_resultant_vector_n_b[0],
+            support_normal_reaction_binormal_n=bow_segment_result.bow_resultant_vector_n_b[1],
+            body_normal_reaction_normal_n=solution.body_normal_reaction_vector_n_b[0],
+            body_normal_reaction_binormal_n=solution.body_normal_reaction_vector_n_b[1],
+            normal_reaction_normal_n=total_normal_reaction_vector_n_b[0],
+            normal_reaction_binormal_n=total_normal_reaction_vector_n_b[1],
+            support_normal_reaction_estimate_n=bow_segment_result.bow_resultant_magnitude_n,
             body_normal_reaction_estimate_n=solution.body_normal_reaction_estimate_n,
-            normal_reaction_estimate_n=solution.normal_reaction_estimate_n,
-            normal_reaction_estimate_n_per_m=solution.normal_reaction_estimate_n_per_m,
+            normal_reaction_estimate_n=total_normal_reaction_magnitude_n,
+            normal_reaction_estimate_n_per_m=(
+                0.0 if segment.segment_length_m <= 0.0 else total_normal_reaction_magnitude_n / segment.segment_length_m
+            ),
+            bow_resultant_normal_n=bow_segment_result.bow_resultant_vector_n_b[0],
+            bow_resultant_binormal_n=bow_segment_result.bow_resultant_vector_n_b[1],
+            bow_resultant_magnitude_n=bow_segment_result.bow_resultant_magnitude_n,
+            centralizer_axial_friction_n=bow_segment_result.centralizer_axial_friction_n,
+            centralizer_tangential_friction_n=bow_segment_result.centralizer_tangential_friction_n,
+            centralizer_torque_increment_n_m=bow_segment_result.centralizer_torque_increment_n_m,
+            centralizer_effective_contact_radius_m=bow_segment_result.effective_contact_radius_m,
             nearby_centralizer_count=node.nearby_centralizer_count,
             contact_iteration_count=global_result.iteration_count,
-            contact_state=solution.contact_state,
-            support_in_contact=solution.support_in_contact,
+            contact_state=(
+                "pipe-body-contact"
+                if solution.pipe_body_in_contact
+                else "bow-spring-contact"
+                if bow_segment_result.bow_resultant_magnitude_n > 0.0
+                else "free"
+            ),
+            support_in_contact=bow_segment_result.bow_resultant_magnitude_n > 0.0,
             pipe_body_in_contact=solution.pipe_body_in_contact,
         )
         profile.append(result)
-
         minimum_effective_axial_load_n = min(minimum_effective_axial_load_n, result.effective_axial_load_n)
         maximum_effective_axial_load_n = max(maximum_effective_axial_load_n, result.effective_axial_load_n)
         maximum_bending_moment_n_m = max(maximum_bending_moment_n_m, result.bending_moment_n_m)
         maximum_bending_stress_pa = max(maximum_bending_stress_pa, result.bending_stress_pa)
-        maximum_bending_strain_estimate = max(
-            maximum_bending_strain_estimate,
-            result.bending_strain_estimate,
-        )
+        maximum_bending_strain_estimate = max(maximum_bending_strain_estimate, result.bending_strain_estimate)
         maximum_equivalent_lateral_load_n_per_m = max(
             maximum_equivalent_lateral_load_n_per_m,
             result.equivalent_lateral_load_n_per_m,
         )
-        maximum_eccentricity_estimate_m = max(
-            maximum_eccentricity_estimate_m,
-            result.eccentricity_estimate_m,
-        )
+        maximum_eccentricity_estimate_m = max(maximum_eccentricity_estimate_m, result.eccentricity_estimate_m)
         maximum_eccentricity_ratio = max(maximum_eccentricity_ratio, result.eccentricity_ratio)
         minimum_standoff_estimate = min(minimum_standoff_estimate, result.standoff_estimate)
-        maximum_normal_reaction_estimate_n = max(
-            maximum_normal_reaction_estimate_n,
-            result.normal_reaction_estimate_n,
-        )
+        maximum_normal_reaction_estimate_n = max(maximum_normal_reaction_estimate_n, result.normal_reaction_estimate_n)
         contact_segment_count += int(result.support_in_contact or result.pipe_body_in_contact)
         support_contact_segment_count += int(result.support_in_contact)
         pipe_body_contact_segment_count += int(result.pipe_body_in_contact)
@@ -877,7 +1159,7 @@ def run_mechanical_baseline(
         target_segment_length_m=loaded_case.discretization_step_m,
         global_solver_iteration_count=global_result.iteration_count,
         global_solver_final_update_norm_m=global_result.final_update_norm_m,
-        top_effective_axial_load_n=top_effective_axial_load_n,
+        top_effective_axial_load_n=max(0.0, top_effective_axial_load_n),
         minimum_effective_axial_load_n=minimum_effective_axial_load_n,
         maximum_effective_axial_load_n=maximum_effective_axial_load_n,
         maximum_bending_moment_n_m=maximum_bending_moment_n_m,

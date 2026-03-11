@@ -69,15 +69,84 @@ Explicit limitations of Phase 5:
 
 ## Phase 6
 
-- Fuller nonlinear contact and wall reaction iteration
-- Torque and drag propagation with friction coupling
-- Optimizer for centralizer spacing and placement
-- Batch scenario execution and comparison
-- Richer reporting outputs
-- Calibration and validation against field or laboratory data
+What now exists:
+
+- Reduced axial drag propagation for `run_in` and `pull_out` using the Phase 5 normal-reaction profile
+- Reduced hookload estimates for run in and pull out
+- Reduced rotational torque integration using `mu * N * r`
+- JSON and CLI outputs for axial-force profiles, hookloads, torque profile, and surface torque
+- Verification cases covering friction sensitivity, reaction sensitivity, torque sensitivity, and sign coherence
+
+Explicit limitations of Phase 6:
+
+- Torque and drag are still reduced and depend on the Phase 5 scalar normal-reaction model.
+- Axial friction is propagated segmentwise and does not come from a full nonlinear 3D contact/friction solve.
+- Rotational torque is quasi-static and does not include stick-slip, surge/swab, or detailed rotational operating modes.
+- Centralizers still do not use a detailed bow-spring constitutive model.
+
+## Phase 7
+
+What now exists:
+
+- First iterative coupling loop between the reduced global lateral/contact solver and the reduced torque/drag module
+- Axial-profile update inside the coupling loop with configurable iteration count, tolerance, and relaxation factor
+- Converged axial, normal-reaction, and torque profiles exported in JSON
+- Explicit documentation of the physical meaning of `N` in the reduced torque/drag model:
+  segment resultant normal reaction `[N]`, not distributed load `[N/m]`
+- Explicit sign conventions for `run_in/slackoff` and `pull_out/pickup`
+
+Explicit limitations of Phase 7:
+
+- The lateral/contact model is still scalar and reduced.
+- Friction is still reduced `mu * N` post-processing, not full 3D annular friction.
+- Torque remains reduced `mu * N * r` integration.
+- Centralizers still do not use a detailed bow-spring constitutive model.
+
+## Phase 8
+
+What now exists:
+
+- Reduced local-frame construction along the trajectory using tangent plus transported normal/binormal directions
+- Two transverse DOFs per node in the local `n-b` plane
+- Vector global assembly with bending contribution, axial-tension geometric stiffening, and local spring support
+- Vector annular contact with magnitude and direction of normal reaction
+- Vector eccentricity, contact-direction, and normal-reaction profiles exported to JSON
+- The reduced torque/drag coupling retained on top of the vector contact solution
+- Tests covering frame orthonormality, vector eccentricity/contact behavior, centralizer effect, and CLI/JSON execution
+
+Explicit limitations of Phase 8:
+
+- The frame is still built with a reduced parallel-transport construction, not a full differential-geometry reference implementation.
+- The structural solve is still reduced and does not yet use a full 6-DOF spatial beam element.
+- Contact is still penalty-based and only mildly iterative.
+- Torque and drag still use reduced `mu * N` and `mu * N * r` laws, not full vector tangential contact mechanics.
+- Centralizers still do not use detailed bow-by-bow stiffness or force laws.
+
+## Phase 9
+
+What now exists:
+
+- Detailed bow-spring data for each centralizer: number of bows, angular reference, internal pipe clearance, optional power-law parameters, and optional min/max contact diameters
+- Uniform angular bow distribution in the local `n-b` frame:
+  `alpha_i = alpha_ref + 2 pi i / number_of_bows`
+- Reduced bow deflection law:
+  `delta_i = max(0, e . r_i - (c_support + c_inner))`
+- Reduced constitutive bow force law:
+  `F_i = k_blade * delta_i^p`
+- Bow-by-bow force vectors and vector resultant:
+  `R_bow = sum_i F_i r_i`
+- Detailed centralizer outputs in JSON: bow force vectors/magnitudes, bow resultant vector/magnitude, centralizer axial friction, centralizer tangential friction, and centralizer torque profile
+- Reduced torque split between pipe-body contribution and detailed centralizer contribution
+
+Explicit limitations of Phase 9:
+
+- The structural solve still uses the reduced 2-DOF transverse field from Phase 8, not a full 6-DOF beam element.
+- Bow forces are post-processed consistently in the local frame, but the global structural solve still uses a reduced equivalent support stiffness/onset.
+- Tangential friction from bows is still reduced and quasi-static, not a full nonlinear vector friction/contact law.
+- Global torque and drag remain reduced engineering estimates, not commercial-grade predictions.
 
 ## Working Rules
 
 - Keep SI units internal even if external reports later expose oilfield units.
 - Keep input data externalized in YAML instead of embedding cases in solver code.
-- Treat Phase 5 mechanical outputs as limited reduced-order mechanics, not final engineering predictions.
+- Treat Phase 9 mechanical and torque/drag outputs as limited reduced-order mechanics, not final engineering predictions.

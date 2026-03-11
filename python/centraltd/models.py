@@ -14,6 +14,7 @@ class ConfigError(ValueError):
 PI = math.pi
 TAU = 2.0 * math.pi
 STANDARD_GRAVITY_M_PER_S2 = 9.80665
+SUPPORTED_OPERATION_MODES = {"run_in", "pull_out", "rotate_in_place"}
 
 
 def _expect_mapping(raw: Any, context: str) -> Mapping[str, Any]:
@@ -520,9 +521,17 @@ class CentralizerSpecModel:
     name: str
     type: str
     outer_diameter_m: float
+    support_outer_diameter_m: float
+    number_of_bows: int
+    angular_orientation_reference_deg: float
+    inner_clearance_to_pipe_m: float
     nominal_restoring_force_n: float
     nominal_running_force_n: float
     spacing_hint_m: float
+    blade_power_law_k: float | None = None
+    blade_power_law_p: float = 1.0
+    min_contact_diameter_m: float | None = None
+    max_contact_diameter_m: float | None = None
     count_hint: int | None = None
     installation_md_m: list[float] | None = None
 
@@ -540,12 +549,50 @@ class CentralizerSpecModel:
         count_hint = raw.get("count_hint")
         if count_hint is not None and (not isinstance(count_hint, int) or isinstance(count_hint, bool)):
             raise ConfigError(f"{context}.count_hint must be an integer when provided.")
+        centralizer_type = (
+            _optional_text(raw, "centralizer_type")
+            or _optional_text(raw, "type", "bow-spring")
+            or "bow-spring"
+        )
+        support_outer_diameter_m = _optional_float(raw, "support_outer_diameter_m", context)
+        outer_diameter_m = _optional_float(raw, "outer_diameter_m", context)
+        resolved_support_outer_diameter_m = (
+            support_outer_diameter_m
+            if support_outer_diameter_m is not None
+            else outer_diameter_m
+        )
+        if resolved_support_outer_diameter_m is None:
+            raise ConfigError(
+                f"{context}.support_outer_diameter_m or {context}.outer_diameter_m must be provided."
+            )
         spec = cls(
             name=_require_text(raw, "name", context),
-            type=_optional_text(raw, "type", "bow-spring") or "bow-spring",
-            outer_diameter_m=_require_float(raw, "outer_diameter_m", context),
+            type=centralizer_type,
+            outer_diameter_m=(
+                outer_diameter_m
+                if outer_diameter_m is not None
+                else resolved_support_outer_diameter_m
+            ),
+            support_outer_diameter_m=resolved_support_outer_diameter_m,
+            number_of_bows=(
+                _require_int(raw, "number_of_bows", context)
+                if raw.get("number_of_bows") is not None
+                else 6
+            ),
+            angular_orientation_reference_deg=(
+                _optional_float(raw, "angular_orientation_reference_deg", context) or 0.0
+            ),
+            inner_clearance_to_pipe_m=(
+                _optional_float(raw, "inner_clearance_to_pipe_m", context) or 0.0
+            ),
             nominal_restoring_force_n=_require_float(raw, "nominal_restoring_force_n", context),
             nominal_running_force_n=_require_float(raw, "nominal_running_force_n", context),
+            blade_power_law_k=_optional_float(raw, "blade_power_law_k", context),
+            blade_power_law_p=(
+                _optional_float(raw, "blade_power_law_p", context) or 1.0
+            ),
+            min_contact_diameter_m=_optional_float(raw, "min_contact_diameter_m", context),
+            max_contact_diameter_m=_optional_float(raw, "max_contact_diameter_m", context),
             spacing_hint_m=_require_float(raw, "spacing_hint_m", context),
             count_hint=count_hint,
             installation_md_m=installation_md_m,
@@ -556,12 +603,32 @@ class CentralizerSpecModel:
     def validate(self, context: str) -> None:
         if not self.type:
             raise ConfigError(f"{context}.type must be non-empty.")
-        if self.outer_diameter_m <= 0.0:
-            raise ConfigError(f"{context}.outer_diameter_m must be positive.")
+        if self.support_outer_diameter_m <= 0.0:
+            raise ConfigError(f"{context}.support_outer_diameter_m must be positive.")
+        if self.number_of_bows <= 0:
+            raise ConfigError(f"{context}.number_of_bows must be at least one.")
+        if self.inner_clearance_to_pipe_m < 0.0:
+            raise ConfigError(f"{context}.inner_clearance_to_pipe_m must be non-negative.")
         if self.nominal_restoring_force_n <= 0.0:
             raise ConfigError(f"{context}.nominal_restoring_force_n must be positive.")
         if self.nominal_running_force_n <= 0.0:
             raise ConfigError(f"{context}.nominal_running_force_n must be positive.")
+        if self.blade_power_law_k is not None and self.blade_power_law_k <= 0.0:
+            raise ConfigError(f"{context}.blade_power_law_k must be positive when provided.")
+        if self.blade_power_law_p <= 0.0:
+            raise ConfigError(f"{context}.blade_power_law_p must be positive.")
+        if self.min_contact_diameter_m is not None and self.min_contact_diameter_m <= 0.0:
+            raise ConfigError(f"{context}.min_contact_diameter_m must be positive when provided.")
+        if self.max_contact_diameter_m is not None and self.max_contact_diameter_m <= 0.0:
+            raise ConfigError(f"{context}.max_contact_diameter_m must be positive when provided.")
+        if (
+            self.min_contact_diameter_m is not None
+            and self.max_contact_diameter_m is not None
+            and self.min_contact_diameter_m > self.max_contact_diameter_m
+        ):
+            raise ConfigError(
+                f"{context}.min_contact_diameter_m cannot exceed {context}.max_contact_diameter_m."
+            )
         if self.spacing_hint_m <= 0.0:
             raise ConfigError(f"{context}.spacing_hint_m must be positive.")
         if self.count_hint is not None and self.count_hint <= 0:
@@ -576,6 +643,21 @@ class CentralizerSpecModel:
 
     def explicit_installation_count(self) -> int:
         return len(self.installation_md_m or [])
+
+    @property
+    def centralizer_type(self) -> str:
+        return self.type
+
+    def resolved_support_outer_diameter_m(self) -> float:
+        return self.support_outer_diameter_m if self.support_outer_diameter_m > 0.0 else self.outer_diameter_m
+
+    def effective_contact_diameter_m(self) -> float:
+        diameter_m = self.resolved_support_outer_diameter_m()
+        if self.min_contact_diameter_m is not None:
+            diameter_m = max(diameter_m, self.min_contact_diameter_m)
+        if self.max_contact_diameter_m is not None:
+            diameter_m = min(diameter_m, self.max_contact_diameter_m)
+        return diameter_m
 
     def spacing_based_estimate(self, coverage_length_m: float) -> int:
         if self.count_hint is not None:
@@ -628,9 +710,12 @@ class CentralizerConfigModel:
         spacing_based_installation_estimate = sum(
             spec.spacing_based_estimate(coverage_length_m) for spec in self.centralizers
         )
-        max_outer_diameter_m = max((spec.outer_diameter_m for spec in self.centralizers), default=0.0)
+        max_outer_diameter_m = max(
+            (spec.resolved_support_outer_diameter_m() for spec in self.centralizers),
+            default=0.0,
+        )
         clearances = [
-            0.5 * (hole_diameter_m - spec.outer_diameter_m)
+            0.5 * (hole_diameter_m - spec.effective_contact_diameter_m())
             for spec in self.centralizers
             if hole_diameter_m > 0.0
         ]
@@ -652,9 +737,14 @@ class CaseDefinition:
     string: str
     centralizers: str
     output_json: str | None = None
+    operation_mode: str = "run_in"
     discretization_step_m: float | None = None
     global_solver_max_iterations: int | None = None
     contact_penalty_scale: float | None = None
+    coupling_max_iterations: int | None = None
+    coupling_tolerance_n: float | None = None
+    relaxation_factor: float | None = None
+    frame_method: str = "parallel-transport"
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "CaseDefinition":
@@ -665,6 +755,7 @@ class CaseDefinition:
             string=_require_text(raw, "string", context),
             centralizers=_require_text(raw, "centralizers", context),
             output_json=_optional_text(raw, "output_json"),
+            operation_mode=_optional_text(raw, "operation_mode", "run_in") or "run_in",
             discretization_step_m=_optional_float(raw, "discretization_step_m", context),
             global_solver_max_iterations=(
                 None
@@ -672,15 +763,38 @@ class CaseDefinition:
                 else _require_int(raw, "global_solver_max_iterations", context)
             ),
             contact_penalty_scale=_optional_float(raw, "contact_penalty_scale", context),
+            coupling_max_iterations=(
+                None
+                if raw.get("coupling_max_iterations") is None
+                else _require_int(raw, "coupling_max_iterations", context)
+            ),
+            coupling_tolerance_n=_optional_float(raw, "coupling_tolerance_n", context),
+            relaxation_factor=_optional_float(raw, "relaxation_factor", context),
+            frame_method=_optional_text(raw, "frame_method", "parallel-transport")
+            or "parallel-transport",
         )
 
     def validate(self) -> None:
+        if self.operation_mode not in SUPPORTED_OPERATION_MODES:
+            raise ConfigError(
+                "case.operation_mode must be one of: run_in, pull_out, rotate_in_place."
+            )
         if self.discretization_step_m is not None and self.discretization_step_m <= 0.0:
             raise ConfigError("case.discretization_step_m must be positive when provided.")
         if self.global_solver_max_iterations is not None and self.global_solver_max_iterations <= 0:
             raise ConfigError("case.global_solver_max_iterations must be at least one when provided.")
         if self.contact_penalty_scale is not None and self.contact_penalty_scale <= 0.0:
             raise ConfigError("case.contact_penalty_scale must be positive when provided.")
+        if self.coupling_max_iterations is not None and self.coupling_max_iterations <= 0:
+            raise ConfigError("case.coupling_max_iterations must be at least one when provided.")
+        if self.coupling_tolerance_n is not None and self.coupling_tolerance_n <= 0.0:
+            raise ConfigError("case.coupling_tolerance_n must be positive when provided.")
+        if self.relaxation_factor is not None and (
+            self.relaxation_factor <= 0.0 or self.relaxation_factor > 1.0
+        ):
+            raise ConfigError("case.relaxation_factor must stay within (0, 1].")
+        if self.frame_method != "parallel-transport":
+            raise ConfigError("case.frame_method must currently be 'parallel-transport'.")
 
 
 @dataclass(slots=True)
@@ -713,9 +827,9 @@ class LoadedCase:
                 )
 
         for index, spec in enumerate(self.centralizers.centralizers):
-            if hole_diameter_m > 0.0 and spec.outer_diameter_m > hole_diameter_m:
+            if hole_diameter_m > 0.0 and spec.effective_contact_diameter_m() > hole_diameter_m:
                 raise ConfigError(
-                    f"centralizers.centralizers[{index}].outer_diameter_m cannot exceed well.hole_diameter_m."
+                    f"centralizers.centralizers[{index}].support_outer_diameter_m cannot exceed well.hole_diameter_m."
                 )
             for installation_index, installation_md in enumerate(spec.installation_md_m or []):
                 if installation_md > final_well_md_m:
@@ -737,6 +851,10 @@ class LoadedCase:
         return 30.0 if self.definition.discretization_step_m is None else self.definition.discretization_step_m
 
     @property
+    def operation_mode(self) -> str:
+        return self.definition.operation_mode
+
+    @property
     def global_solver_max_iterations(self) -> int:
         return (
             8
@@ -751,6 +869,34 @@ class LoadedCase:
             if self.definition.contact_penalty_scale is None
             else self.definition.contact_penalty_scale
         )
+
+    @property
+    def coupling_max_iterations(self) -> int:
+        return (
+            6
+            if self.definition.coupling_max_iterations is None
+            else self.definition.coupling_max_iterations
+        )
+
+    @property
+    def coupling_tolerance_n(self) -> float:
+        return (
+            25.0
+            if self.definition.coupling_tolerance_n is None
+            else self.definition.coupling_tolerance_n
+        )
+
+    @property
+    def relaxation_factor(self) -> float:
+        return (
+            0.5
+            if self.definition.relaxation_factor is None
+            else self.definition.relaxation_factor
+        )
+
+    @property
+    def frame_method(self) -> str:
+        return self.definition.frame_method
 
     def trajectory_summary(self) -> TrajectorySummaryModel:
         return self.well.summary()

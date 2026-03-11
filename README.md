@@ -1,8 +1,8 @@
 # centraltd
 
-Phase 5 baseline for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository now includes validated survey geometry utilities, richer string and centralizer data models, and a first reduced global stiff-string-like baseline with annular contact iteration and nominal centralizer support.
+Phase 9 baseline for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository now includes validated survey geometry utilities, a reduced vector local-frame structural/contact model, a reduced torque & drag layer coupled iteratively to the global lateral solution, and a detailed bow-spring centralizer layer modeled bow by bow in the local transverse frame.
 
-It still does not implement a full stiff-string solver or full torque and drag.
+It still does not implement a commercial stiff-string solver, a full 6-DOF beam/contact formulation, or fully nonlinear 3D contact/friction torque and drag.
 
 ## Objective
 
@@ -18,7 +18,7 @@ Build the project in phases while keeping the numerical kernel in C++, and the o
 
 ## Current Phase
 
-Phase 5 currently implements:
+Phase 9 currently implements:
 
 - trajectory validation from MD, inclination, and azimuth
 - approximate trajectory geometry by balanced-tangent integration
@@ -29,23 +29,43 @@ Phase 5 currently implements:
 - effective line weight from dry weight minus buoyancy
 - bending stiffness from `E * I`
 - simplified effective axial load integration from buoyant tangential weight
-- reduced global scalar lateral equilibrium along MD with coupling between neighboring nodes
-- bending contribution, axial-tension geometric stiffening, and lateral equivalent loading
-- nominal centralizer centering/support effect as local spring support
-- annular contact restriction by clearance with simple global active-set penalty iteration
-- eccentricity, contact state, normal reaction, and standoff estimates from the global solution
+- reduced global scalar-to-vector transition with two transverse DOFs per node in the local trajectory frame
+- local tangent, normal, and binormal frame construction by a reduced parallel-transport method
+- vector lateral equivalent loading in the local `n-b` plane from gravity projection and curvature
+- vector global assembly with bending contribution, axial-tension geometric stiffening, and local spring support
+- vector annular contact with active-set penalty iteration and vector normal reaction
+- vector eccentricity, contact direction, normal-reaction vector, and standoff estimates from the global solution
+- bow-spring centralizer geometry with explicit `number_of_bows`, angular reference, internal pipe clearance, and optional power-law parameters
+- bow-by-bow deflection and force evaluation in the local transverse plane using `delta_i = max(0, e . r_i - (c_support + c_inner))`
+- nonlinear bow force law `F_i = k_blade * delta_i^p` with optional direct `k/p` input or fallback calibration from nominal restoring force
+- vector summation of individual bow forces into a local centralizer resultant
+- reduced axial drag propagation for `run_in` and `pull_out` using `mu * N`, where `N` is the resultant normal reaction per segment `[N]`
+- reduced rotational torque integration using `mu * N * r`
+- separation between pipe-body drag/torque and detailed centralizer drag/torque contributions
+- iterative coupling between the selected axial profile, the vector lateral/contact solve, and the reduced T&D post-processing
+- hookload estimates for run in and pull out, plus a reduced surface-torque estimate
 
 ## Hypotheses And Limitations
 
-The Phase 4 baseline is intentionally limited:
+The Phase 9 baseline is intentionally limited:
 
 - survey-derived coordinates remain approximate and are not a survey-processing reference implementation
-- the column response is quasi-static and reduced to a scalar lateral displacement along MD
+- the column response is quasi-static and reduced to two transverse displacement components in the local normal/binormal plane
 - the bending term still uses the equivalent simply supported beam relation `delta_max = 5 q L^4 / (384 E I)`, so the `384/5` factor is an explicit reduced structural hypothesis
-- the solver is global and coupled along MD, but it is still not a full 3D stiff-string solve in the annulus
-- contact is handled by a simple global active-set penalty iteration, not a full nonlinear wall-reaction model
-- centralizers are represented only by nominal OD and nominal restoring support over an influence length
-- `estimated_surface_torque_n_m` is intentionally `null` because torque and drag are not implemented yet
+- the local frame uses a reduced parallel-transport construction, not a full differential-geometry reference implementation
+- the solver is global and coupled along MD, but it is still not a full 3D stiff-string beam/contact solve in the annulus
+- contact is handled by a simple global vector active-set penalty iteration, not a full nonlinear wall-reaction model
+- each bow direction is distributed uniformly from the angular reference: `alpha_i = alpha_ref + 2 pi i / number_of_bows`
+- the local bow unit vector is `r_i = [cos(alpha_i), sin(alpha_i)]` in the `n-b` plane
+- bow deflection is reduced to the positive radial projection past the support onset:
+  `delta_i = max(0, e . r_i - (c_support + c_inner))`
+- bow force is reduced to `F_i = k_blade * delta_i^p`, with `F_i >= 0` and `delta_i >= 0`
+- the centralizer resultant is `R_bow = sum_i F_i r_i`
+- axial drag uses reduced `mu * N` propagation with operation-dependent sign conventions:
+  run in/slackoff subtracts `mu * N` from the local hookload increment, while pull out/pickup adds `mu * N`
+- pipe-body torque uses reduced `mu * N_body * r_body`
+- centralizer torque uses the bow-resultant magnitude scaled by the nominal running/restoring-force ratio and multiplied by an effective centralizer contact radius
+- torque remains reduced and does not yet use full tangential vector friction or a bow-by-bow dynamic/contact solve
 
 Use these outputs as structured engineering scaffolding, not as final design predictions.
 
@@ -56,7 +76,10 @@ Use these outputs as structured engineering scaffolding, not as final design pre
 - Phase 3: first simplified stiff-string mechanical baseline with discretization, buoyancy, bending stiffness, and curvature loading
 - Phase 4: first local lateral-equilibrium baseline with contact iteration, standoff estimate, and normal reaction estimate
 - Phase 5: reduced global stiff-string-like baseline with coupled lateral displacement, global contact iteration, and centralizer spring support
-- Phase 6: fuller contact/friction mechanics, benchmark growth, and design/optimization workflows
+- Phase 6: reduced torque & drag layer with run-in/pull-out hookloads and reduced surface torque
+- Phase 7: first iterative coupling between the reduced global lateral/contact solve and the reduced torque & drag layer
+- Phase 8: vector local-frame structural/contact baseline with two transverse DOFs per node and vector normal reactions
+- Phase 9: detailed bow-spring centralizer geometry, bow-by-bow nonlinear reduced forces, vector bow resultants, and centralizer-aware reduced torque contributions
 
 See [docs/roadmap.md](/c:/Users/heito/Downloads/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
 
@@ -93,10 +116,10 @@ Print a case summary:
 centraltd summary examples/minimal_case.yaml
 ```
 
-Run the Phase 5 global baseline and write JSON output:
+Run the Phase 9 vector local-frame baseline and write JSON output:
 
 ```bash
-centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase5_stub.json
+centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase9_stub.json
 ```
 
 ## Tests
@@ -115,9 +138,10 @@ pytest
 
 ## What Is Still Not Implemented
 
-- fuller 3D stiff-string equilibrium in the annulus
+- fuller 3D stiff-string beam equilibrium in the annulus
+- 6-DOF spatial beam kinematics with rotations/torsion
 - more robust nonlinear contact and wall reaction iteration
-- real side-force prediction with friction coupling
-- real torque and drag
-- detailed bow-spring constitutive behavior
+- real side-force prediction with fuller friction coupling
+- full torque and drag with stronger axial/rotational coupling
+- fuller bow-by-bow tangential friction and torque resolution
 - optimizer
