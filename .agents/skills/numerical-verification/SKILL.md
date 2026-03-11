@@ -1,25 +1,24 @@
 ---
 name: numerical-verification
-description: Add or refine verification coverage for scientific and numerical code. Use when introducing solver changes, regression tests, smoke tests, deterministic reference outputs, or validation rules for numerical workflows.
+description: Use when changing solver equations, contact algorithms, constitutive laws, iterative coupling, or any numerical core behavior. Do not use for trivial docs-only edits.
 ---
 
-# Numerical Verification
+# Goal
 
-## Goal
+Verify numerical robustness and consistency after solver-side changes.
 
-Ensure every solver-facing change is accompanied by a test or deterministic check that catches regressions early.
+# Workflow
 
-## Workflow
+1. Identify affected equations and assumptions.
+2. Check dimensional consistency.
+3. Check sign conventions.
+4. Run targeted C++ and Python tests.
+5. Run CLI smoke validation.
+6. Summarize what changed, what passed, and what remains uncertain.
 
-- Start with smoke coverage for buildability, importability, and basic data flow.
-- Prefer deterministic inputs and outputs over probabilistic checks.
-- Separate validation of schemas and units from validation of numerical results.
-- Add explicit tolerances only when a calculation warrants them.
-- Fail fast on missing required fields, invalid geometry, or non-monotonic trajectories.
+# Done Criteria
 
-## Done Criteria
-
-- At least one automated check exercises the changed workflow end to end.
-- Expected outputs or failure modes are explicit.
-- Tests are small enough to run in local development without heavy setup.
-
+- dimensional consistency checked
+- relevant tests updated
+- build, `ctest`, `pytest`, and CLI pass
+- uncertainties are explicitly listed
