@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 from typing import Any
 
+from .bow_spring import (
+    bow_force_magnitude_n,
+    bow_reference_deflection_m,
+    centralizer_effective_contact_diameter_m,
+    centralizer_running_force_ratio,
+    equivalent_bow_support_stiffness_n_per_m,
+    resolved_blade_power_law_k,
+)
 from .io import load_case_bundle, write_json
 from .coupling import run_coupled_global_baseline
 from .mechanics import (
@@ -50,6 +59,9 @@ PHASE9_TODOS = [
     "TODO: implement design-space optimization workflow.",
 ]
 
+PHASE10_VALIDATION_STATUS = "phase10-benchmark-calibration-infrastructure"
+GLOBAL_SOLVER_UPDATE_TOLERANCE_M = 1.0e-8
+
 
 def _core_supports_phase9() -> bool:
     if cpp_core is None:
@@ -75,6 +87,7 @@ def _core_supports_phase9() -> bool:
             (result, "centralizer_model_status"),
             (result, "centralizer_torque_profile"),
             (result, "coupling_status"),
+            (result, "coupling_final_max_profile_update_n"),
             (result, "converged_axial_profile"),
             (summary, "maximum_normal_reaction_estimate_n"),
             (summary, "global_solver_iteration_count"),
@@ -314,6 +327,69 @@ def _normal_reaction_profile_to_dict(profile: list[Any]) -> list[dict[str, Any]]
         }
         for point in profile
     ]
+
+
+def _centralizer_traceability_to_dict(loaded_case: LoadedCase) -> list[dict[str, Any]]:
+    hole_radius_m = 0.5 * loaded_case.reference_hole_diameter_m
+    traceability: list[dict[str, Any]] = []
+    for spec in loaded_case.centralizers.centralizers:
+        resolved_k = resolved_blade_power_law_k(spec, hole_radius_m)
+        reference_deflection_m = bow_reference_deflection_m(spec, hole_radius_m)
+        reference_loaded_bow_count = max(1.0, math.ceil(0.5 * float(spec.number_of_bows)))
+        traceability.append(
+            {
+                "name": spec.name,
+                "type": spec.type,
+                "number_of_bows": spec.number_of_bows,
+                "angular_orientation_reference_deg": spec.angular_orientation_reference_deg,
+                "inner_clearance_to_pipe_m": spec.inner_clearance_to_pipe_m,
+                "nominal_restoring_force_n": spec.nominal_restoring_force_n,
+                "nominal_running_force_n": spec.nominal_running_force_n,
+                "running_to_restoring_force_ratio": centralizer_running_force_ratio(spec),
+                "support_outer_diameter_m": spec.support_outer_diameter_m,
+                "effective_contact_diameter_m": centralizer_effective_contact_diameter_m(spec),
+                "reference_deflection_m": reference_deflection_m,
+                "reference_loaded_bow_count": reference_loaded_bow_count,
+                "blade_power_law_k_input_n_per_m_pow_p": spec.blade_power_law_k,
+                "blade_power_law_p_input": spec.blade_power_law_p,
+                "resolved_blade_power_law_k_n_per_m_pow_p": resolved_k,
+                "resolved_blade_power_law_p": spec.blade_power_law_p,
+                "equivalent_reference_support_stiffness_n_per_m": (
+                    equivalent_bow_support_stiffness_n_per_m(spec, hole_radius_m)
+                ),
+                "force_per_bow_at_5mm_n": bow_force_magnitude_n(spec, hole_radius_m, 0.005),
+                "force_per_bow_at_10mm_n": bow_force_magnitude_n(spec, hole_radius_m, 0.010),
+                "calibration_status": (
+                    "explicit_power_law_input"
+                    if spec.blade_power_law_k is not None
+                    else "nominal_restoring_force_fallback"
+                ),
+            }
+        )
+    return traceability
+
+
+def _traceability_to_dict(loaded_case: LoadedCase, result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "convergence": {
+            "global_solver": {
+                "max_iterations": loaded_case.global_solver_max_iterations,
+                "iteration_count": result["mechanical_summary"]["global_solver_iteration_count"],
+                "final_update_norm_m": result["mechanical_summary"]["global_solver_final_update_norm_m"],
+                "update_tolerance_m": GLOBAL_SOLVER_UPDATE_TOLERANCE_M,
+            },
+            "coupling": {
+                "max_iterations": loaded_case.coupling_max_iterations,
+                "iteration_count": result["coupling_iterations"],
+                "tolerance_n": loaded_case.coupling_tolerance_n,
+                "relaxation_factor": loaded_case.relaxation_factor,
+                "final_max_profile_update_n": result["coupling_final_max_profile_update_n"],
+                "converged": result["coupling_converged"],
+                "status": result["coupling_status"],
+            },
+        },
+        "centralizer_parameters": _centralizer_traceability_to_dict(loaded_case),
+    }
 
 
 def _derived_profiles(mechanical_profile: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -635,6 +711,7 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         ),
         "coupling_status": coupling_result.status,
         "coupling_iterations": coupling_result.iteration_count,
+        "coupling_final_max_profile_update_n": coupling_result.maximum_profile_update_n,
         "coupling_converged": coupling_result.converged,
         "converged_axial_profile": _axial_force_profile_to_dict(
             coupling_result.converged_axial_profile
@@ -689,6 +766,7 @@ def _cpp_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         "centralizer_torque_profile": _torque_profile_to_dict(list(result.centralizer_torque_profile)),
         "coupling_status": result.coupling_status,
         "coupling_iterations": result.coupling_iterations,
+        "coupling_final_max_profile_update_n": result.coupling_final_max_profile_update_n,
         "coupling_converged": result.coupling_converged,
         "converged_axial_profile": _axial_force_profile_to_dict(list(result.converged_axial_profile)),
         "converged_normal_reaction_profile": _normal_reaction_profile_to_dict(
@@ -729,6 +807,7 @@ def run_stub_case(
         "well": loaded_case.well.name,
         "string": loaded_case.string.name,
         "centralizer_config": loaded_case.centralizers.name,
+        "validation_status": PHASE10_VALIDATION_STATUS,
         "inputs": {
             "case_path": str(loaded_case.case_path),
             "well_path": str(loaded_case.well_path),
@@ -747,6 +826,7 @@ def run_stub_case(
         },
         **result,
         **derived_profiles,
+        "traceability": _traceability_to_dict(loaded_case, result),
         "updated_estimated_surface_torque_n_m": result["estimated_surface_torque_n_m"],
     }
 

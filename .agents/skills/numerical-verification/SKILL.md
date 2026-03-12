@@ -16,9 +16,9 @@ Verify numerical robustness and consistency after solver-side changes.
 5. Run CLI smoke validation.
 6. Summarize what changed, what passed, and what remains uncertain.
 
-# Done Criteria
+# Done criteria
 
 - dimensional consistency checked
 - relevant tests updated
-- build, `ctest`, `pytest`, and CLI pass
+- build/ctest/pytest/CLI pass
 - uncertainties are explicitly listed

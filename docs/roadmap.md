@@ -145,8 +145,25 @@ Explicit limitations of Phase 9:
 - Tangential friction from bows is still reduced and quasi-static, not a full nonlinear vector friction/contact law.
 - Global torque and drag remain reduced engineering estimates, not commercial-grade predictions.
 
+## Phase 10
+
+What now exists:
+
+- Versioned benchmark cases in `benchmarks/` covering vertical, deviated, symmetric-centralizer, symmetry-breaking, and constitutive/friction sensitivity studies
+- A benchmark-suite runner that executes the YAML cases, writes per-case JSON payloads, and evaluates cross-case validation rules
+- Reduced bow-spring calibration utilities for fitting `k` and `p` from force-deflection pairs or reduced nominal force points
+- Traceability fields in the JSON payload for resolved centralizer parameters, convergence criteria, and final coupling update magnitude
+- Additional C++ and Python regression coverage for friction trend, bow-stiffness trend, calibration recovery, benchmark execution, CLI, and JSON outputs
+
+Explicit limitations of Phase 10:
+
+- The benchmark suite currently validates internal consistency and expected reduced-order trends, not equivalence to literature or commercial software.
+- The calibration workflow only fits the reduced bow power-law parameters and does not yet ingest manufacturer curves, hysteresis, wear, or uncertainty bands.
+- The structural/contact core is still the reduced Phase 9 model, not a full 6-DOF stiff-string beam/contact formulation.
+- Global torque and drag remain reduced engineering estimates even when the benchmark checks pass.
+
 ## Working Rules
 
 - Keep SI units internal even if external reports later expose oilfield units.
 - Keep input data externalized in YAML instead of embedding cases in solver code.
-- Treat Phase 9 mechanical and torque/drag outputs as limited reduced-order mechanics, not final engineering predictions.
+- Treat Phase 9 mechanical and torque/drag outputs, and the Phase 10 validation overlays built on them, as limited reduced-order mechanics rather than final engineering predictions.

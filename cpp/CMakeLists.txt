@@ -5,6 +5,7 @@ add_library(centraltd_core STATIC
     src/centralizer.cpp
     src/bow_spring_geometry.cpp
     src/bow_spring_constitutive_model.cpp
+    src/bow_spring_calibration.cpp
     src/bow_spring_resultants.cpp
     src/trajectory_frame.cpp
     src/discretization.cpp

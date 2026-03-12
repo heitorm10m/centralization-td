@@ -16,7 +16,7 @@ Maintain and extend the vector structural solver in the local trajectory frame w
 - Keep vector outputs explicit in direction, magnitude, and units.
 - Add or update tests whenever frame or vector solver behavior changes.
 
-# Done Criteria
+# Done criteria
 
 - build passes
 - solver tests pass

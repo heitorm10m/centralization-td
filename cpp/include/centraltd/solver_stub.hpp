@@ -81,6 +81,7 @@ struct SolverStubResult {
   std::vector<TorquePoint> centralizer_torque_profile;
   std::string coupling_status{"max_iterations_reached"};
   std::size_t coupling_iterations{0};
+  Scalar coupling_final_max_profile_update_n{0.0};
   bool coupling_converged{false};
   std::vector<AxialForcePoint> converged_axial_profile;
   std::vector<NormalReactionPoint> converged_normal_reaction_profile;

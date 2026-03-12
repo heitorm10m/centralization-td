@@ -1,6 +1,6 @@
 ---
 name: paper-alignment-review
-description: "Use when the task should be evaluated against the target literature direction of this repository: vector stiff-string progression, bow-by-bow centralizer modeling, and torque from vector resultants. Do not use for generic refactors with no physics impact."
+description: Use when the task should be evaluated against the target literature direction of this repository: vector stiff-string progression, bow-by-bow centralizer modeling, and torque from vector resultants. Do not use for generic refactors with no physics impact.
 ---
 
 # Goal
@@ -16,7 +16,7 @@ Review whether the implementation direction remains aligned with the target lite
 - Do not claim equivalence to a full literature model unless the implemented degrees of freedom, contact handling, and constitutive logic really support that claim.
 - State the next technical step required to reduce the gap.
 
-# Done Criteria
+# Done criteria
 
 - alignment summary written
 - missing pieces identified

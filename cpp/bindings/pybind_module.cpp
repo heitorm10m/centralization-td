@@ -1,3 +1,4 @@
+#include "centraltd/bow_spring_calibration.hpp"
 #include "centraltd/centralizer.hpp"
 #include "centraltd/discretization.hpp"
 #include "centraltd/mechanical_solver.hpp"
@@ -538,6 +539,60 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("force_magnitude_n", &centraltd::BowForceDetail::force_magnitude_n)
       .def_readwrite("force_vector_n_b", &centraltd::BowForceDetail::force_vector_n_b);
 
+  py::class_<centraltd::BowSpringCalibrationPoint>(m, "BowSpringCalibrationPoint")
+      .def(py::init<>())
+      .def_readwrite("deflection_m", &centraltd::BowSpringCalibrationPoint::deflection_m)
+      .def_readwrite("force_n", &centraltd::BowSpringCalibrationPoint::force_n);
+
+  py::class_<centraltd::BowSpringCalibrationEvaluationPoint>(
+      m,
+      "BowSpringCalibrationEvaluationPoint")
+      .def(py::init<>())
+      .def_readwrite(
+          "deflection_m",
+          &centraltd::BowSpringCalibrationEvaluationPoint::deflection_m)
+      .def_readwrite(
+          "measured_force_n",
+          &centraltd::BowSpringCalibrationEvaluationPoint::measured_force_n)
+      .def_readwrite(
+          "predicted_force_n",
+          &centraltd::BowSpringCalibrationEvaluationPoint::predicted_force_n)
+      .def_readwrite(
+          "absolute_error_n",
+          &centraltd::BowSpringCalibrationEvaluationPoint::absolute_error_n)
+      .def_readwrite(
+          "relative_error",
+          &centraltd::BowSpringCalibrationEvaluationPoint::relative_error);
+
+  py::class_<centraltd::BowSpringCalibrationResult>(m, "BowSpringCalibrationResult")
+      .def(py::init<>())
+      .def_readwrite("status", &centraltd::BowSpringCalibrationResult::status)
+      .def_readwrite(
+          "blade_power_law_k",
+          &centraltd::BowSpringCalibrationResult::blade_power_law_k)
+      .def_readwrite(
+          "blade_power_law_p",
+          &centraltd::BowSpringCalibrationResult::blade_power_law_p)
+      .def_readwrite(
+          "point_count",
+          &centraltd::BowSpringCalibrationResult::point_count)
+      .def_readwrite(
+          "fitted_parameter_count",
+          &centraltd::BowSpringCalibrationResult::fitted_parameter_count)
+      .def_readwrite(
+          "rmse_force_n",
+          &centraltd::BowSpringCalibrationResult::rmse_force_n)
+      .def_readwrite(
+          "mean_absolute_error_n",
+          &centraltd::BowSpringCalibrationResult::mean_absolute_error_n)
+      .def_readwrite(
+          "mean_absolute_relative_error",
+          &centraltd::BowSpringCalibrationResult::mean_absolute_relative_error)
+      .def_readwrite(
+          "evaluation_points",
+          &centraltd::BowSpringCalibrationResult::evaluation_points)
+      .def_readwrite("warnings", &centraltd::BowSpringCalibrationResult::warnings);
+
   py::class_<centraltd::NormalReactionPoint>(m, "NormalReactionPoint")
       .def(py::init<>())
       .def_readwrite(
@@ -651,6 +706,9 @@ PYBIND11_MODULE(_core, m) {
           "coupling_iterations",
           &centraltd::SolverStubResult::coupling_iterations)
       .def_readwrite(
+          "coupling_final_max_profile_update_n",
+          &centraltd::SolverStubResult::coupling_final_max_profile_update_n)
+      .def_readwrite(
           "coupling_converged",
           &centraltd::SolverStubResult::coupling_converged)
       .def_readwrite(
@@ -691,4 +749,17 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("todos", &centraltd::SolverStubResult::todos);
 
   m.def("run_solver_stub", &centraltd::run_solver_stub, py::arg("input"));
+  m.def(
+      "calibrate_bow_spring_power_law",
+      &centraltd::calibrate_bow_spring_power_law,
+      py::arg("points"),
+      py::arg("fixed_blade_power_law_p") = py::none());
+  m.def(
+      "calibrate_bow_spring_from_nominal_points",
+      &centraltd::calibrate_bow_spring_from_nominal_points,
+      py::arg("nominal_restoring_force_n"),
+      py::arg("restoring_deflection_m"),
+      py::arg("nominal_running_force_n") = py::none(),
+      py::arg("running_deflection_m") = py::none(),
+      py::arg("fixed_blade_power_law_p") = py::none());
 }

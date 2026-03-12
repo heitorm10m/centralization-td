@@ -117,6 +117,7 @@ CouplingDriverResult run_coupled_global_baseline(
     }
 
     result.iteration_count = iteration_index + 1U;
+    result.maximum_profile_update_n = maximum_profile_update_n;
     result.mechanical_result = std::move(mechanical_result);
     result.torque_drag_result = std::move(torque_drag_result);
     result.converged_axial_profile = axial_points_from_loads(

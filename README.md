@@ -1,6 +1,6 @@
 # centraltd
 
-Phase 9 baseline for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository now includes validated survey geometry utilities, a reduced vector local-frame structural/contact model, a reduced torque & drag layer coupled iteratively to the global lateral solution, and a detailed bow-spring centralizer layer modeled bow by bow in the local transverse frame.
+Phase 10 validation and calibration infrastructure for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, detailed bow-spring centralizer layer, and reduced coupled torque & drag baseline, and now adds benchmark cases, cross-case validation checks, calibration utilities for the reduced bow constitutive law, and richer output traceability.
 
 It still does not implement a commercial stiff-string solver, a full 6-DOF beam/contact formulation, or fully nonlinear 3D contact/friction torque and drag.
 
@@ -18,7 +18,7 @@ Build the project in phases while keeping the numerical kernel in C++, and the o
 
 ## Current Phase
 
-Phase 9 currently implements:
+Phase 10 currently implements the Phase 9 solver core plus:
 
 - trajectory validation from MD, inclination, and azimuth
 - approximate trajectory geometry by balanced-tangent integration
@@ -44,6 +44,29 @@ Phase 9 currently implements:
 - separation between pipe-body drag/torque and detailed centralizer drag/torque contributions
 - iterative coupling between the selected axial profile, the vector lateral/contact solve, and the reduced T&D post-processing
 - hookload estimates for run in and pull out, plus a reduced surface-torque estimate
+- canonical benchmark YAML cases for vertical, deviated, symmetric-centralizer, symmetry-breaking, and constitutive/friction sensitivity studies
+- a benchmark-suite runner with case checks, cross-case comparisons, and JSON summaries
+- reduced bow-spring calibration utilities from force-deflection pairs or reduced nominal force points
+- output traceability for resolved centralizer parameters, convergence criteria, and final coupling update magnitude
+
+## Validation Status
+
+What is now validated inside the repository:
+
+- sign coherence for run in vs pull out, drag, and reduced torque outputs
+- expected trend of increasing curvature toward higher reduced lateral severity and eccentricity
+- expected trend of increasing friction toward higher hookload differential and surface torque
+- symmetric vs symmetry-broken bow-resultant behavior
+- reduced reference bow-support stiffness sensitivity to `number_of_bows` and explicit `blade_power_law_k`
+- regression of the reduced bow power-law calibration against synthetic force-deflection data
+- benchmark and calibration CLI JSON generation
+
+What is still not validated:
+
+- comparison against published stiff-string benchmarks or commercial software
+- calibration against manufacturer or laboratory bow-spring force-deflection data
+- uncertainty bounds, repeatability studies, or statistical error models
+- full nonlinear tangential contact/friction validation in 3D
 
 ## Hypotheses And Limitations
 
@@ -67,7 +90,7 @@ The Phase 9 baseline is intentionally limited:
 - centralizer torque uses the bow-resultant magnitude scaled by the nominal running/restoring-force ratio and multiplied by an effective centralizer contact radius
 - torque remains reduced and does not yet use full tangential vector friction or a bow-by-bow dynamic/contact solve
 
-Use these outputs as structured engineering scaffolding, not as final design predictions.
+Use these outputs as structured engineering scaffolding with traceable validation checks, not as final design predictions.
 
 ## Roadmap By Phase
 
@@ -80,8 +103,9 @@ Use these outputs as structured engineering scaffolding, not as final design pre
 - Phase 7: first iterative coupling between the reduced global lateral/contact solve and the reduced torque & drag layer
 - Phase 8: vector local-frame structural/contact baseline with two transverse DOFs per node and vector normal reactions
 - Phase 9: detailed bow-spring centralizer geometry, bow-by-bow nonlinear reduced forces, vector bow resultants, and centralizer-aware reduced torque contributions
+- Phase 10: benchmark suite, reduced calibration utilities, output traceability, and validation-oriented regression checks
 
-See [docs/roadmap.md](/c:/Users/heito/Downloads/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
+See [docs/roadmap.md](/c:/Users/heitor.matos/Downloads/CS_complete_v214-20260303T125845Z-1-001/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
 
 ## Devcontainer
 
@@ -114,12 +138,9 @@ Print a case summary:
 
 ```bash
 centraltd summary examples/minimal_case.yaml
-```
-
-Run the Phase 9 vector local-frame baseline and write JSON output:
-
-```bash
 centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase9_stub.json
+centraltd benchmark-suite benchmarks/suites/phase10_validation.yaml --output-dir build/benchmarks/phase10
+centraltd calibrate-bow-spring benchmarks/calibration/force_deflection_pairs.yaml --output build/calibration/force_pairs.json
 ```
 
 ## Tests
@@ -144,4 +165,6 @@ pytest
 - real side-force prediction with fuller friction coupling
 - full torque and drag with stronger axial/rotational coupling
 - fuller bow-by-bow tangential friction and torque resolution
+- external literature benchmark alignment and manufacturer-data calibration
+- quantified uncertainty/error bars for the reduced benchmark suite
 - optimizer

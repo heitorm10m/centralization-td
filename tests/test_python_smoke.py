@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,13 +41,15 @@ def test_run_stub_writes_json_output(tmp_path: Path) -> None:
     assert output_path.exists()
     assert "Status: phase9-vector-bow-spring-td-baseline" in result.stdout
     assert "Operation mode: run_in" in result.stdout
-    assert "Global solver iterations [-]:" in result.stdout
+    assert "Global solver iterations [-]: " in result.stdout
     assert "Coupling status:" in result.stdout
     assert "Coupling converged:" in result.stdout
+    assert "Coupling final max profile update [N]:" in result.stdout
     assert "Hookload run in [N]:" in result.stdout
     assert "Hookload pull out [N]:" in result.stdout
     assert "Max normal reaction estimate [N]:" in result.stdout
     assert "Centralizer model status: phase9-detailed-bow-spring" in result.stdout
+    assert "Validation status: phase10-benchmark-calibration-infrastructure" in result.stdout
     assert "Surface torque [N.m]:" in result.stdout
     assert "Updated surface torque with detailed centralizers [N.m]:" in result.stdout
 
@@ -54,11 +57,13 @@ def test_run_stub_writes_json_output(tmp_path: Path) -> None:
     assert payload["status"] == "phase9-vector-bow-spring-td-baseline"
     assert payload["backend"] in {"cpp", "python-fallback"}
     assert payload["operation_mode"] == "run_in"
+    assert payload["validation_status"] == "phase10-benchmark-calibration-infrastructure"
     assert payload["trajectory_summary"]["point_count"] == 5
     assert payload["string_summary"]["section_count"] == 3
     assert payload["mechanical_summary"]["segment_count"] > 0
     assert payload["mechanical_summary"]["global_solver_iteration_count"] >= 1
     assert payload["coupling_iterations"] >= 1
+    assert payload["coupling_final_max_profile_update_n"] >= 0.0
     assert payload["estimated_surface_torque_n_m"] is not None
     assert payload["updated_estimated_surface_torque_n_m"] == payload["estimated_surface_torque_n_m"]
     assert payload["centralizer_model_status"] == "phase9-detailed-bow-spring"
@@ -85,3 +90,35 @@ def test_run_stub_writes_json_output(tmp_path: Path) -> None:
         "pipe-body-contact",
         "hole-undefined",
     }
+
+
+def test_benchmark_suite_command_writes_summary(tmp_path: Path) -> None:
+    runner = CliRunner()
+    suite_path = ROOT / "benchmarks" / "suites" / "phase10_validation.yaml"
+    output_dir = tmp_path / "benchmark-suite"
+
+    result = runner.invoke(app, ["benchmark-suite", str(suite_path), "--output-dir", str(output_dir)])
+
+    assert result.exit_code == 0
+    assert "Benchmark suite: phase10-validation-benchmark-suite" in result.stdout
+    assert "All passed: True" in result.stdout
+    assert (output_dir / "suite_summary.json").exists()
+
+
+def test_calibrate_bow_spring_command_writes_json(tmp_path: Path) -> None:
+    runner = CliRunner()
+    config_path = ROOT / "benchmarks" / "calibration" / "force_deflection_pairs.yaml"
+    output_path = tmp_path / "calibration.json"
+
+    result = runner.invoke(
+        app,
+        ["calibrate-bow-spring", str(config_path), "--output", str(output_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Calibration: benchmark-force-deflection-fit" in result.stdout
+    assert "Status: calibrated" in result.stdout
+    assert output_path.exists()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "calibrated"
+    assert payload["resolved_parameters"]["blade_power_law_p"] == pytest.approx(1.25)

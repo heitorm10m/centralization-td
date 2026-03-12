@@ -25,6 +25,7 @@ from .torque_drag import (
 class CouplingResultModel:
     status: str
     iteration_count: int
+    maximum_profile_update_n: float
     converged: bool
     converged_axial_profile: list[AxialForcePointModel]
     converged_normal_reaction_profile: list[NormalReactionPointModel]
@@ -99,6 +100,7 @@ def run_coupled_global_baseline(loaded_case: LoadedCase) -> CouplingResultModel:
         estimated_surface_torque_n_m=0.0,
     )
     iteration_count = 0
+    maximum_profile_update_n = 0.0
     converged = False
 
     for iteration_index in range(loaded_case.coupling_max_iterations):
@@ -164,6 +166,7 @@ def run_coupled_global_baseline(loaded_case: LoadedCase) -> CouplingResultModel:
     return CouplingResultModel(
         status="converged" if converged else "max_iterations_reached",
         iteration_count=iteration_count,
+        maximum_profile_update_n=maximum_profile_update_n,
         converged=converged,
         converged_axial_profile=_axial_points(measured_depths_m, current_axial_profile_n),
         converged_normal_reaction_profile=_normal_reaction_points(mechanical_profile),

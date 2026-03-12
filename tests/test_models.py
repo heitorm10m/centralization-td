@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from centraltd.io import load_case_bundle  # noqa: E402
+from centraltd.benchmarking import run_benchmark_suite  # noqa: E402
+from centraltd.calibration import run_bow_spring_calibration  # noqa: E402
 from centraltd.coupling import run_coupled_global_baseline  # noqa: E402
 from centraltd.bow_spring import (  # noqa: E402
     bow_contact_onset_clearance_m,
@@ -705,14 +707,64 @@ def test_phase9_payload_contains_bow_spring_outputs(tmp_path: Path) -> None:
     assert payload["updated_estimated_surface_torque_n_m"] == pytest.approx(
         payload["estimated_surface_torque_n_m"]
     )
+    assert payload["validation_status"] == "phase10-benchmark-calibration-infrastructure"
     assert payload["centralizer_model_status"] == "phase9-detailed-bow-spring"
     assert payload["torque_and_drag_status"] == "phase9-reduced-bow-spring-td-baseline"
     assert payload["torque_drag_status"] == "phase9-reduced-bow-spring-td-baseline"
+    assert payload["coupling_final_max_profile_update_n"] >= 0.0
     assert payload["mechanical_summary"]["maximum_normal_reaction_estimate_n"] >= 0.0
     assert any(segment["bow_force_details"] for segment in payload["mechanical_profile"])
     assert any(
         point["centralizer_torque_increment_n_m"] > 0.0
         for point in payload["torque_profile"]
     )
+    assert "traceability" in payload
+    assert payload["traceability"]["convergence"]["global_solver"]["update_tolerance_m"] == pytest.approx(1.0e-8)
+    assert payload["traceability"]["convergence"]["coupling"]["final_max_profile_update_n"] == pytest.approx(
+        payload["coupling_final_max_profile_update_n"]
+    )
+    assert len(payload["traceability"]["centralizer_parameters"]) == payload["centralizer_summary"]["spec_count"]
+    assert payload["traceability"]["centralizer_parameters"][0]["calibration_status"] in {
+        "explicit_power_law_input",
+        "nominal_restoring_force_fallback",
+    }
     assert len(payload["warnings"]) >= 9
     assert len(payload["todos"]) == 6
+
+
+def test_benchmark_suite_runs_and_validations_pass(tmp_path: Path) -> None:
+    suite_path = ROOT / "benchmarks" / "suites" / "phase10_validation.yaml"
+
+    payload, output_path = run_benchmark_suite(suite_path, tmp_path / "benchmark-output")
+
+    assert output_path.exists()
+    assert payload["summary"]["case_count"] == 14
+    assert payload["summary"]["validation_count"] >= 8
+    assert payload["summary"]["all_passed"] is True
+    assert all(case["failed_check_count"] == 0 for case in payload["cases"])
+    assert all(validation["passed"] for validation in payload["validations"])
+
+
+def test_force_deflection_calibration_recovers_expected_power_law(tmp_path: Path) -> None:
+    config_path = ROOT / "benchmarks" / "calibration" / "force_deflection_pairs.yaml"
+
+    payload, output_path = run_bow_spring_calibration(config_path, tmp_path / "force-fit.json")
+
+    assert output_path.exists()
+    assert payload["status"] == "calibrated"
+    assert payload["resolved_parameters"]["blade_power_law_k_n_per_m_pow_p"] == pytest.approx(80000.0)
+    assert payload["resolved_parameters"]["blade_power_law_p"] == pytest.approx(1.25)
+    assert payload["fit_quality"]["rmse_force_n"] == pytest.approx(0.0, abs=1.0e-10)
+    assert len(payload["evaluation_points"]) == 4
+
+
+def test_nominal_point_calibration_produces_positive_parameters(tmp_path: Path) -> None:
+    config_path = ROOT / "benchmarks" / "calibration" / "nominal_force_points.yaml"
+
+    payload, output_path = run_bow_spring_calibration(config_path, tmp_path / "nominal-fit.json")
+
+    assert output_path.exists()
+    assert payload["status"] == "calibrated"
+    assert payload["resolved_parameters"]["blade_power_law_k_n_per_m_pow_p"] > 0.0
+    assert payload["resolved_parameters"]["blade_power_law_p"] > 0.0
+    assert len(payload["evaluation_points"]) == 2

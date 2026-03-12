@@ -10,16 +10,16 @@ Keep torque and drag logic physically consistent, modular, and honest about what
 # Rules
 
 - Document the physical meaning and units of every normal-force input used by friction logic.
-- Document sign conventions for `run_in`, `pull_out`, `pickup`, `slackoff`, and rotation.
+- Document sign conventions for run-in, pull-out, pickup, slackoff, and rotation.
 - Separate axial propagation, torque integration, and coupling driver.
-- If a quantity is not yet physically defensible, prefer `null` or explicit status over a guessed number.
+- If a quantity is not yet physically defensible, prefer null or explicit status over a guessed number.
 - Keep body contact contributions and centralizer contributions distinguishable.
 - Update tests whenever signs, profiles, or operation modes change.
 
-# Done Criteria
+# Done criteria
 
 - signs are documented
 - units are documented
-- build, tests, and CLI pass
+- build/tests/CLI pass
 - output JSON remains consistent
 - docs explain what remains reduced

@@ -4,6 +4,8 @@ from pathlib import Path
 
 import typer
 
+from .benchmarking import format_benchmark_summary, run_benchmark_suite
+from .calibration import format_bow_spring_calibration_summary, run_bow_spring_calibration
 from .models import ConfigError
 from .runner import format_case_summary, load_case, run_stub_case
 
@@ -75,6 +77,10 @@ def run_stub(
     )
     typer.echo(f"Coupling status: {payload['coupling_status']}")
     typer.echo(f"Coupling iterations [-]: {payload['coupling_iterations']}")
+    typer.echo(
+        "Coupling final max profile update [N]: "
+        f"{payload['coupling_final_max_profile_update_n']:.6f}"
+    )
     typer.echo(f"Coupling converged: {payload['coupling_converged']}")
     typer.echo(
         "Top effective axial load [N]: "
@@ -117,6 +123,7 @@ def run_stub(
         f"{payload['minimum_nominal_radial_clearance_m']:.4f}"
     )
     typer.echo(f"Centralizer model status: {payload['centralizer_model_status']}")
+    typer.echo(f"Validation status: {payload['validation_status']}")
     typer.echo(f"Torque drag status: {payload['torque_drag_status']}")
     if payload["estimated_surface_torque_n_m"] is None:
         typer.echo(f"Surface torque [N.m]: unavailable ({payload['torque_drag_status']})")
@@ -136,6 +143,52 @@ def run_stub(
         f"{payload['mechanical_summary']['pipe_body_contact_segment_count']}"
     )
     typer.echo(f"Saved JSON: {output_path}")
+
+
+@app.command("benchmark-suite")
+def benchmark_suite(
+    suite_path: Path = typer.Argument(..., exists=True, dir_okay=False, readable=True, resolve_path=True),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        file_okay=False,
+        help="Optional output directory for suite and per-case JSON artifacts.",
+    ),
+) -> None:
+    """Execute a benchmark suite, write per-case JSON payloads, and summarize validations."""
+
+    try:
+        payload, output_path = run_benchmark_suite(suite_path, output_dir)
+    except ConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(format_benchmark_summary(payload))
+    typer.echo(f"Saved benchmark summary: {output_path}")
+
+
+@app.command("calibrate-bow-spring")
+def calibrate_bow_spring(
+    config_path: Path = typer.Argument(..., exists=True, dir_okay=False, readable=True, resolve_path=True),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        dir_okay=False,
+        help="Optional JSON output path for the calibration result.",
+    ),
+) -> None:
+    """Fit the reduced bow-spring power-law parameters from YAML calibration data."""
+
+    try:
+        payload, output_path = run_bow_spring_calibration(config_path, output)
+    except ConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(format_bow_spring_calibration_summary(payload))
+    typer.echo(f"Saved calibration JSON: {output_path}")
 
 
 def main() -> None:

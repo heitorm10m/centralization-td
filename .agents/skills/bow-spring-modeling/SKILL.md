@@ -16,7 +16,7 @@ Implement bow-spring centralizers as explicit, physically interpretable componen
 - Document what is geometric assumption and what is constitutive law.
 - Keep axial and tangential centralizer effects distinguishable in outputs and docs.
 
-# Preferred Physics Direction
+# Preferred physics direction
 
 - bow count
 - angular orientation
@@ -24,7 +24,7 @@ Implement bow-spring centralizers as explicit, physically interpretable componen
 - nonlinear per-bow force law
 - vector resultant in the transverse plane
 
-# Done Criteria
+# Done criteria
 
 - bow-wise logic is explicit
 - vector resultant is available

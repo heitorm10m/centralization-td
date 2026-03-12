@@ -233,6 +233,7 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
       coupled_result.torque_drag_result.centralizer_torque_profile;
   result.coupling_status = coupled_result.status;
   result.coupling_iterations = coupled_result.iteration_count;
+  result.coupling_final_max_profile_update_n = coupled_result.maximum_profile_update_n;
   result.coupling_converged = coupled_result.converged;
   result.converged_axial_profile = coupled_result.converged_axial_profile;
   result.converged_normal_reaction_profile = coupled_result.converged_normal_reaction_profile;
