@@ -2,36 +2,38 @@
 
 ## Escopo
 
-Estas instruções valem para o núcleo C++ do solver.
+Estas instrucoes valem para o nucleo C++ do solver.
 
 ## Regras do core
 
-- Toda fórmula implementada deve ser dimensionalmente coerente.
-- Toda hipótese estrutural deve ser documentada perto do código que a usa.
-- Não misturar lógica de solver com serialização, CLI, YAML parsing ou plotting.
-- Não usar nomes físicos fortes para grandezas que ainda são apenas `estimates`, `proxies` ou `reduced baselines`.
+- Toda formula implementada deve ser dimensionalmente coerente.
+- Toda hipotese estrutural deve ser documentada perto do codigo que a usa.
+- Nao misturar logica de solver com serializacao, CLI, YAML parsing ou plotting.
+- Nao usar nomes fisicos fortes para grandezas que ainda sao apenas `estimates`, `proxies` ou `reduced baselines`.
+- Explicitar se vetores e magnitudes estao no frame local da trajetoria ou em coordenadas transformadas.
 - Separar claramente:
   - geometria e frame local
-  - discretização
+  - discretizacao
   - montagem global
   - contato
   - centralizadores
   - torque & drag
   - acoplamento iterativo
-  - pós-processamento
-- Se um módulo crescer demais, quebrar em arquivos novos.
+  - pos-processamento
+- Se um modulo crescer demais, quebrar em arquivos novos.
 
-## Regras numéricas
+## Regras numericas
 
-- Preferir algoritmos robustos e simples antes de aumentar a sofisticação.
-- Em problemas iterativos, documentar residual, critério de convergência e limite de iterações.
-- Em contato penalizado, documentar o significado físico da penalidade e onde ela entra no residual.
+- Preferir algoritmos robustos e simples antes de aumentar a sofisticacao.
+- Em problemas iterativos, documentar residual, criterio de convergencia e limites de iteracao.
+- Em contato penalizado, documentar o significado fisico da penalidade e onde ela entra no residual.
 - Em outputs, distinguir claramente vetor, magnitude, `estimate`, `reaction` e `force`.
-- Manter convenções de sinais explícitas para perfis axiais, contato e torque.
+- Manter distinguiveis, no codigo e nos outputs, as contribuicoes do corpo da coluna e dos centralizadores para contato, atrito e torque.
+- Manter convencoes de sinais explicitas para perfis axiais, contato e torque.
 
-## Direção técnica do solver
+## Direcao tecnica do solver
 
-A direção do solver é:
-modelo vetorial reduzido no frame local -> bow-by-bow -> torque tangencial vetorial -> calibração e validação.
+A direcao do solver e:
+modelo vetorial reduzido no frame local -> bow-by-bow -> torque tangencial vetorial -> calibracao/validacao.
 
-Não voltar a novas simplificações escalares como direção principal.
+Nao voltar a novas simplificacoes escalares como direcao principal.
