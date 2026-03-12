@@ -22,5 +22,7 @@ Scalar equivalent_bow_support_stiffness_n_per_m(
     Scalar hole_radius_m);
 
 Scalar centralizer_running_force_ratio(const CentralizerPlacement& placement);
+Scalar centralizer_axial_force_ratio(const CentralizerPlacement& placement);
+Scalar centralizer_tangential_force_ratio(const CentralizerPlacement& placement);
 
 }  // namespace centraltd

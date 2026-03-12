@@ -80,18 +80,28 @@ BowSpringSegmentResult evaluate_bow_spring_segment_result(
     }
 
     const Scalar placement_resultant_magnitude_n = vector_norm(placement_resultant_vector_n_b);
-    const Scalar placement_running_ratio = centralizer_running_force_ratio(placement);
+    const Scalar placement_axial_force_ratio = centralizer_axial_force_ratio(placement);
+    const Scalar placement_tangential_force_ratio = centralizer_tangential_force_ratio(placement);
     const Scalar placement_effective_contact_radius_m =
         0.5 * centralizer_effective_contact_diameter_m(placement);
 
+    result.placement_resultant_details.push_back(CentralizerPlacementResultantDetail{
+        placement.source_name,
+        placement.measured_depth_m,
+        placement_effective_contact_radius_m,
+        placement_axial_force_ratio,
+        placement_tangential_force_ratio,
+        placement_resultant_vector_n_b,
+        placement_resultant_magnitude_n,
+    });
     result.bow_resultant_vector_n_b[0] += placement_resultant_vector_n_b[0];
     result.bow_resultant_vector_n_b[1] += placement_resultant_vector_n_b[1];
     result.centralizer_axial_friction_n +=
-        placement_running_ratio * placement_resultant_magnitude_n;
+        placement_axial_force_ratio * placement_resultant_magnitude_n;
     result.centralizer_tangential_friction_n +=
-        placement_running_ratio * placement_resultant_magnitude_n;
+        placement_tangential_force_ratio * placement_resultant_magnitude_n;
     result.centralizer_torque_increment_n_m +=
-        placement_running_ratio *
+        placement_tangential_force_ratio *
         placement_resultant_magnitude_n *
         placement_effective_contact_radius_m;
     result.effective_contact_radius_m = std::max(

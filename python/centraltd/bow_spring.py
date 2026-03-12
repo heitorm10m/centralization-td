@@ -22,6 +22,17 @@ class BowForceDetailModel:
 
 
 @dataclass(slots=True)
+class CentralizerPlacementResultantDetailModel:
+    source_name: str
+    placement_measured_depth_m: float
+    effective_contact_radius_m: float
+    axial_force_ratio: float
+    tangential_force_ratio: float
+    bow_resultant_vector_n_b: tuple[float, float]
+    bow_resultant_magnitude_n: float
+
+
+@dataclass(slots=True)
 class BowSpringSegmentResultModel:
     support_outer_diameter_m: float
     support_contact_clearance_m: float
@@ -29,6 +40,7 @@ class BowSpringSegmentResultModel:
     nearby_centralizer_count: int
     support_present: bool
     bow_force_details: list[BowForceDetailModel]
+    placement_resultant_details: list[CentralizerPlacementResultantDetailModel]
     bow_resultant_vector_n_b: tuple[float, float]
     bow_resultant_magnitude_n: float
     centralizer_axial_friction_n: float
@@ -147,6 +159,14 @@ def centralizer_running_force_ratio(placement: Any) -> float:
     return max(0.0, placement.nominal_running_force_n / placement.nominal_restoring_force_n)
 
 
+def centralizer_axial_force_ratio(placement: Any) -> float:
+    return centralizer_running_force_ratio(placement)
+
+
+def centralizer_tangential_force_ratio(placement: Any) -> float:
+    return centralizer_running_force_ratio(placement)
+
+
 def evaluate_bow_spring_segment_result(
     segment: Any,
     placements: list[Any],
@@ -159,6 +179,7 @@ def evaluate_bow_spring_segment_result(
         nearby_centralizer_count=0,
         support_present=False,
         bow_force_details=[],
+        placement_resultant_details=[],
         bow_resultant_vector_n_b=(0.0, 0.0),
         bow_resultant_magnitude_n=0.0,
         centralizer_axial_friction_n=0.0,
@@ -235,18 +256,32 @@ def evaluate_bow_spring_segment_result(
             )
 
         placement_resultant_magnitude_n = _norm2((placement_resultant_n, placement_resultant_b))
-        placement_running_ratio = centralizer_running_force_ratio(placement)
+        placement_axial_force_ratio = centralizer_axial_force_ratio(placement)
+        placement_tangential_force_ratio = centralizer_tangential_force_ratio(placement)
         placement_effective_contact_radius_m = 0.5 * centralizer_effective_contact_diameter_m(
             placement
         )
+        result.placement_resultant_details.append(
+            CentralizerPlacementResultantDetailModel(
+                source_name=placement.source_name,
+                placement_measured_depth_m=placement.measured_depth_m,
+                effective_contact_radius_m=placement_effective_contact_radius_m,
+                axial_force_ratio=placement_axial_force_ratio,
+                tangential_force_ratio=placement_tangential_force_ratio,
+                bow_resultant_vector_n_b=(placement_resultant_n, placement_resultant_b),
+                bow_resultant_magnitude_n=placement_resultant_magnitude_n,
+            )
+        )
         bow_resultant_n += placement_resultant_n
         bow_resultant_b += placement_resultant_b
-        result.centralizer_axial_friction_n += placement_running_ratio * placement_resultant_magnitude_n
+        result.centralizer_axial_friction_n += (
+            placement_axial_force_ratio * placement_resultant_magnitude_n
+        )
         result.centralizer_tangential_friction_n += (
-            placement_running_ratio * placement_resultant_magnitude_n
+            placement_tangential_force_ratio * placement_resultant_magnitude_n
         )
         result.centralizer_torque_increment_n_m += (
-            placement_running_ratio
+            placement_tangential_force_ratio
             * placement_resultant_magnitude_n
             * placement_effective_contact_radius_m
         )

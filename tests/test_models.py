@@ -20,6 +20,9 @@ from centraltd.bow_spring import (  # noqa: E402
     build_bow_directions,
     evaluate_bow_spring_segment_result,
 )
+from centraltd.torque_drag_centralizer import (  # noqa: E402
+    evaluate_centralizer_torque_contribution,
+)
 from centraltd.frames import build_frame_nodes  # noqa: E402
 from centraltd.mechanics import (  # noqa: E402
     GlobalContactStateModel,
@@ -295,6 +298,38 @@ def test_eccentricity_breaks_bow_symmetry_and_generates_resultant() -> None:
     assert result.bow_resultant_vector_n_b[0] > 0.0
 
 
+def test_centralizer_tangential_direction_is_orthogonal_to_bow_resultant() -> None:
+    loaded_case = _build_bow_placement_case()
+    segment, placement = _select_mid_segment_and_placement(loaded_case)
+    hole_radius_m = 0.5 * segment.reference_hole_diameter_m
+    onset_m = bow_contact_onset_clearance_m(placement, hole_radius_m)
+
+    bow_result = evaluate_bow_spring_segment_result(segment, [placement], (onset_m + 0.01, 0.0))
+    torque_contribution = evaluate_centralizer_torque_contribution(bow_result)
+
+    assert torque_contribution.tangential_friction_n > 0.0
+    dot_product = (
+        bow_result.bow_resultant_vector_n_b[0] * torque_contribution.tangential_direction_n_b[0]
+        + bow_result.bow_resultant_vector_n_b[1] * torque_contribution.tangential_direction_n_b[1]
+    )
+    assert dot_product == pytest.approx(0.0, abs=1.0e-10)
+
+
+def test_higher_bow_resultant_increases_centralizer_torque_proxy() -> None:
+    loaded_case = _build_bow_placement_case()
+    segment, placement = _select_mid_segment_and_placement(loaded_case)
+    hole_radius_m = 0.5 * segment.reference_hole_diameter_m
+    onset_m = bow_contact_onset_clearance_m(placement, hole_radius_m)
+
+    low_bow_result = evaluate_bow_spring_segment_result(segment, [placement], (onset_m + 0.004, 0.0))
+    high_bow_result = evaluate_bow_spring_segment_result(segment, [placement], (onset_m + 0.012, 0.0))
+    low_torque = evaluate_centralizer_torque_contribution(low_bow_result)
+    high_torque = evaluate_centralizer_torque_contribution(high_bow_result)
+
+    assert high_bow_result.bow_resultant_magnitude_n > low_bow_result.bow_resultant_magnitude_n
+    assert high_torque.torque_increment_n_m > low_torque.torque_increment_n_m
+
+
 def test_string_section_validation_rejects_invalid_geometry() -> None:
     with pytest.raises(ConfigError):
         StringConfigModel.from_dict(
@@ -549,6 +584,11 @@ def test_detailed_centralizer_contribution_adds_torque_component() -> None:
 
     assert max(point.centralizer_torque_increment_n_m for point in torque_drag.torque_profile) > 0.0
     assert max(point.cumulative_torque_n_m for point in torque_drag.centralizer_torque_profile) > 0.0
+    assert torque_drag.torque_partition_summary.centralizer_surface_torque_n_m > 0.0
+    assert torque_drag.torque_partition_summary.total_surface_torque_n_m == pytest.approx(
+        torque_drag.torque_partition_summary.body_surface_torque_n_m
+        + torque_drag.torque_partition_summary.centralizer_surface_torque_n_m
+    )
 
 
 def test_higher_friction_increases_hookload_differential() -> None:
@@ -624,6 +664,7 @@ def test_coupling_converges_for_vertical_case() -> None:
     assert result.converged is True
     assert result.status == "converged"
     assert result.iteration_count >= 1
+    assert result.maximum_torque_update_n_m >= 0.0
     assert len(result.converged_axial_profile) == len(result.mechanical_profile)
     assert len(result.converged_normal_reaction_profile) == len(result.mechanical_profile)
     assert len(result.converged_torque_profile) == len(result.mechanical_profile)
@@ -660,13 +701,13 @@ def test_run_in_and_pull_out_signs_are_coherent(tmp_path: Path) -> None:
     assert payload["estimated_surface_torque_n_m"] >= 0.0
 
 
-def test_phase9_payload_contains_bow_spring_outputs(tmp_path: Path) -> None:
+def test_phase11_payload_contains_torque_partition_outputs(tmp_path: Path) -> None:
     case_path = ROOT / "examples" / "minimal_case.yaml"
-    loaded_case, payload, output_path = run_stub_case(case_path, tmp_path / "phase9-output.json")
+    loaded_case, payload, output_path = run_stub_case(case_path, tmp_path / "phase11-output.json")
 
     assert output_path.exists()
     assert loaded_case.definition.name == "minimal-case"
-    assert payload["status"] == "phase9-vector-bow-spring-td-baseline"
+    assert payload["status"] == "phase11-vector-centralizer-torque-coupled-baseline"
     assert payload["operation_mode"] == "run_in"
     assert payload["trajectory_summary"]["point_count"] == 5
     assert payload["string_summary"]["section_count"] == 3
@@ -697,38 +738,56 @@ def test_phase9_payload_contains_bow_spring_outputs(tmp_path: Path) -> None:
     assert len(payload["axial_force_run_in_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["axial_force_pull_out_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["torque_profile"]) == payload["mechanical_summary"]["segment_count"]
+    assert len(payload["body_axial_friction_profile"]) == payload["mechanical_summary"]["segment_count"]
+    assert len(payload["body_torque_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["centralizer_axial_friction_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["centralizer_tangential_friction_profile"]) == payload["mechanical_summary"]["segment_count"]
+    assert len(payload["centralizer_tangential_friction_vector_profile"]) == payload["mechanical_summary"]["segment_count"]
+    assert len(payload["tangential_friction_vector_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["centralizer_torque_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["converged_axial_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["converged_normal_reaction_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert len(payload["converged_torque_profile"]) == payload["mechanical_summary"]["segment_count"]
     assert payload["estimated_surface_torque_n_m"] is not None
     assert payload["updated_estimated_surface_torque_n_m"] == pytest.approx(
-        payload["estimated_surface_torque_n_m"]
+        payload["torque_partition_summary"]["total_surface_torque_n_m"]
     )
     assert payload["validation_status"] == "phase10-benchmark-calibration-infrastructure"
-    assert payload["centralizer_model_status"] == "phase9-detailed-bow-spring"
-    assert payload["torque_and_drag_status"] == "phase9-reduced-bow-spring-td-baseline"
-    assert payload["torque_drag_status"] == "phase9-reduced-bow-spring-td-baseline"
+    assert payload["centralizer_model_status"] == "phase11-detailed-bow-spring-vector-torque"
+    assert payload["torque_and_drag_status"] == "phase11-reduced-vector-centralizer-torque-baseline"
+    assert payload["torque_drag_status"] == "phase11-reduced-vector-centralizer-torque-baseline"
     assert payload["coupling_final_max_profile_update_n"] >= 0.0
+    assert payload["coupling_final_max_torque_update_n_m"] >= 0.0
     assert payload["mechanical_summary"]["maximum_normal_reaction_estimate_n"] >= 0.0
     assert any(segment["bow_force_details"] for segment in payload["mechanical_profile"])
     assert any(
         point["centralizer_torque_increment_n_m"] > 0.0
         for point in payload["torque_profile"]
     )
+    assert payload["torque_partition_summary"]["total_surface_torque_n_m"] == pytest.approx(
+        payload["torque_partition_summary"]["body_surface_torque_n_m"]
+        + payload["torque_partition_summary"]["centralizer_surface_torque_n_m"]
+    )
+    assert payload["convergence_metadata"]["coupling"]["final_max_torque_update_n_m"] == pytest.approx(
+        payload["coupling_final_max_torque_update_n_m"]
+    )
     assert "traceability" in payload
     assert payload["traceability"]["convergence"]["global_solver"]["update_tolerance_m"] == pytest.approx(1.0e-8)
     assert payload["traceability"]["convergence"]["coupling"]["final_max_profile_update_n"] == pytest.approx(
         payload["coupling_final_max_profile_update_n"]
+    )
+    assert payload["traceability"]["convergence"]["coupling"]["final_max_torque_update_n_m"] == pytest.approx(
+        payload["coupling_final_max_torque_update_n_m"]
     )
     assert len(payload["traceability"]["centralizer_parameters"]) == payload["centralizer_summary"]["spec_count"]
     assert payload["traceability"]["centralizer_parameters"][0]["calibration_status"] in {
         "explicit_power_law_input",
         "nominal_restoring_force_fallback",
     }
-    assert len(payload["warnings"]) >= 9
+    assert payload["traceability"]["centralizer_parameters"][0]["tangential_torque_parameter_status"] == (
+        "derived_from_nominal_running_to_restoring_ratio"
+    )
+    assert len(payload["warnings"]) >= 11
     assert len(payload["todos"]) == 6
 
 
@@ -739,7 +798,7 @@ def test_benchmark_suite_runs_and_validations_pass(tmp_path: Path) -> None:
 
     assert output_path.exists()
     assert payload["summary"]["case_count"] == 14
-    assert payload["summary"]["validation_count"] >= 8
+    assert payload["summary"]["validation_count"] >= 12
     assert payload["summary"]["all_passed"] is True
     assert all(case["failed_check_count"] == 0 for case in payload["cases"])
     assert all(validation["passed"] for validation in payload["validations"])

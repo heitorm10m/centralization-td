@@ -76,6 +76,7 @@ def _max_value(items: Sequence[Mapping[str, Any]], key: str) -> float:
 def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
     centralizer_parameters = payload.get("traceability", {}).get("centralizer_parameters", [])
     mechanical_profile = payload["mechanical_profile"]
+    torque_partition_summary = payload.get("torque_partition_summary", {})
     return {
         "hookload_differential_n": float(payload["hookload_pull_out_n"]) - float(payload["hookload_run_in_n"]),
         "maximum_normal_reaction_estimate_n": float(payload["mechanical_summary"]["maximum_normal_reaction_estimate_n"]),
@@ -94,6 +95,14 @@ def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
             payload["torque_profile"],
             "centralizer_torque_increment_n_m",
         ),
+        "maximum_body_torque_increment_n_m": _max_value(
+            payload["torque_profile"],
+            "body_torque_increment_n_m",
+        ),
+        "maximum_centralizer_tangential_friction_magnitude_n": _max_value(
+            payload.get("centralizer_tangential_friction_vector_profile", []),
+            "tangential_friction_magnitude_n",
+        ),
         "maximum_reference_support_stiffness_n_per_m": max(
             (
                 float(item["equivalent_reference_support_stiffness_n_per_m"])
@@ -111,10 +120,21 @@ def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
         ),
         "coupling_iterations": float(payload["coupling_iterations"]),
         "coupling_final_max_profile_update_n": float(payload["coupling_final_max_profile_update_n"]),
+        "coupling_final_max_torque_update_n_m": float(payload["coupling_final_max_torque_update_n_m"]),
         "global_solver_final_update_norm_m": float(
             payload["mechanical_summary"]["global_solver_final_update_norm_m"]
         ),
         "estimated_surface_torque_n_m": float(payload["estimated_surface_torque_n_m"] or 0.0),
+        "estimated_body_surface_torque_n_m": float(
+            torque_partition_summary.get("body_surface_torque_n_m", 0.0)
+        ),
+        "estimated_centralizer_surface_torque_n_m": float(
+            torque_partition_summary.get("centralizer_surface_torque_n_m", 0.0)
+        ),
+        "torque_partition_residual_n_m": abs(
+            float(torque_partition_summary.get("total_surface_torque_n_m", 0.0))
+            - float(payload["estimated_surface_torque_n_m"] or 0.0)
+        ),
     }
 
 
@@ -161,6 +181,39 @@ def _generic_case_checks(payload: Mapping[str, Any], derived_metrics: Mapping[st
             "details": {
                 "global_solver_iteration_count": payload["mechanical_summary"]["global_solver_iteration_count"],
                 "coupling_iterations": payload["coupling_iterations"],
+            },
+        },
+        {
+            "id": "torque-partition-balance",
+            "passed": (
+                abs(
+                    float(payload["torque_partition_summary"]["total_surface_torque_n_m"])
+                    - (
+                        float(payload["torque_partition_summary"]["body_surface_torque_n_m"])
+                        + float(payload["torque_partition_summary"]["centralizer_surface_torque_n_m"])
+                    )
+                )
+                <= 1.0e-9
+                and abs(
+                    float(payload["updated_estimated_surface_torque_n_m"])
+                    - float(payload["torque_partition_summary"]["total_surface_torque_n_m"])
+                )
+                <= 1.0e-9
+            ),
+            "details": dict(payload["torque_partition_summary"]),
+        },
+        {
+            "id": "partition-profile-lengths",
+            "passed": (
+                len(payload["body_torque_profile"]) == len(payload["torque_profile"])
+                and len(payload["body_axial_friction_profile"]) == len(payload["torque_profile"])
+                and len(payload["centralizer_torque_profile"]) == len(payload["torque_profile"])
+            ),
+            "details": {
+                "torque_profile": len(payload["torque_profile"]),
+                "body_torque_profile": len(payload["body_torque_profile"]),
+                "body_axial_friction_profile": len(payload["body_axial_friction_profile"]),
+                "centralizer_torque_profile": len(payload["centralizer_torque_profile"]),
             },
         },
         {

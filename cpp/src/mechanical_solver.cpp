@@ -2,6 +2,7 @@
 
 #include "centraltd/bow_spring_resultants.hpp"
 #include "centraltd/centralizer_support.hpp"
+#include "centraltd/torque_drag_centralizer.hpp"
 #include "centraltd/vector_global_solver.hpp"
 #include "centraltd/vector_lateral_equilibrium.hpp"
 
@@ -148,6 +149,8 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
             node_solution.lateral_displacement_normal_m,
             node_solution.lateral_displacement_binormal_m,
         });
+    const auto centralizer_torque_contribution =
+        evaluate_centralizer_torque_contribution(bow_segment_result);
     const Vector2 total_normal_reaction_vector_n_b{
         bow_segment_result.bow_resultant_vector_n_b[0] +
             node_solution.body_normal_reaction_vector_n_b[0],
@@ -267,14 +270,24 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
         bow_segment_result.bow_resultant_vector_n_b[1];
     segment_result.bow_resultant_magnitude_n =
         bow_segment_result.bow_resultant_magnitude_n;
+    segment_result.centralizer_tangential_direction_normal =
+        centralizer_torque_contribution.tangential_direction_n_b[0];
+    segment_result.centralizer_tangential_direction_binormal =
+        centralizer_torque_contribution.tangential_direction_n_b[1];
+    segment_result.centralizer_tangential_friction_normal_n =
+        centralizer_torque_contribution.tangential_friction_vector_n_b[0];
+    segment_result.centralizer_tangential_friction_binormal_n =
+        centralizer_torque_contribution.tangential_friction_vector_n_b[1];
+    segment_result.centralizer_tangential_friction_vector_magnitude_n =
+        centralizer_torque_contribution.tangential_friction_vector_magnitude_n;
     segment_result.centralizer_axial_friction_n =
-        bow_segment_result.centralizer_axial_friction_n;
+        centralizer_torque_contribution.axial_friction_n;
     segment_result.centralizer_tangential_friction_n =
-        bow_segment_result.centralizer_tangential_friction_n;
+        centralizer_torque_contribution.tangential_friction_n;
     segment_result.centralizer_torque_increment_n_m =
-        bow_segment_result.centralizer_torque_increment_n_m;
+        centralizer_torque_contribution.torque_increment_n_m;
     segment_result.centralizer_effective_contact_radius_m =
-        bow_segment_result.effective_contact_radius_m;
+        centralizer_torque_contribution.effective_contact_radius_m;
     segment_result.nearby_centralizer_count = node.nearby_centralizer_count;
     segment_result.contact_iteration_count = global_solution.iteration_count;
     segment_result.support_in_contact =

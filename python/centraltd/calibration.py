@@ -365,6 +365,18 @@ def run_bow_spring_calibration(
         "resolved_parameters": {
             "blade_power_law_k_n_per_m_pow_p": result["blade_power_law_k"],
             "blade_power_law_p": result["blade_power_law_p"],
+            "axial_friction_force_ratio_parameter": None,
+            "tangential_torque_force_ratio_parameter": None,
+        },
+        "parameter_roles": {
+            "blade_power_law_k_n_per_m_pow_p": "bow-restoring-force-law",
+            "blade_power_law_p": "bow-restoring-force-law-exponent",
+            "axial_friction_force_ratio_parameter": (
+                "not calibrated here; currently derived in the solver from nominal_running_force_n / nominal_restoring_force_n"
+            ),
+            "tangential_torque_force_ratio_parameter": (
+                "not calibrated here; currently derived in the solver from nominal_running_force_n / nominal_restoring_force_n"
+            ),
         },
         "fit_quality": {
             "point_count": result["point_count"],

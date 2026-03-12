@@ -96,8 +96,8 @@ int main() {
   const auto result = centraltd::run_solver_stub(build_input(sections, centralizers));
 
   if (!require(
-          result.status == "phase9-vector-bow-spring-td-baseline",
-          "Unexpected phase9 status.")) {
+          result.status == "phase11-vector-centralizer-torque-coupled-baseline",
+          "Unexpected phase11 status.")) {
     return 1;
   }
   if (!require(result.todos.size() == 6U, "Unexpected TODO count.")) {
@@ -227,13 +227,23 @@ int main() {
     return 1;
   }
   if (!require(
-          result.torque_and_drag_status == "phase9-reduced-bow-spring-td-baseline",
+          result.torque_and_drag_status == "phase11-reduced-vector-centralizer-torque-baseline",
           "Unexpected torque and drag status.")) {
     return 1;
   }
   if (!require(
-          result.centralizer_model_status == "phase9-detailed-bow-spring",
+          result.centralizer_model_status == "phase11-detailed-bow-spring-vector-torque",
           "Unexpected centralizer model status.")) {
+    return 1;
+  }
+  if (!require(
+          result.body_axial_friction_profile.size() == result.mechanical_summary.segment_count,
+          "Body axial friction profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
+          result.body_torque_profile.size() == result.mechanical_summary.segment_count,
+          "Body torque profile size must match segment count.")) {
     return 1;
   }
   if (!require(
@@ -242,8 +252,27 @@ int main() {
     return 1;
   }
   if (!require(
+          result.centralizer_tangential_friction_vector_profile.size() ==
+              result.mechanical_summary.segment_count,
+          "Centralizer tangential friction vector profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
           result.centralizer_torque_profile.size() == result.mechanical_summary.segment_count,
           "Centralizer torque profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
+          std::abs(
+              result.torque_partition_summary.total_surface_torque_n_m -
+              (result.torque_partition_summary.body_surface_torque_n_m +
+               result.torque_partition_summary.centralizer_surface_torque_n_m)) <= 1.0e-9,
+          "Torque partition summary must balance body and centralizer torque.")) {
+    return 1;
+  }
+  if (!require(
+          result.coupling_final_max_torque_update_n_m >= 0.0,
+          "Final coupling torque update should be non-negative.")) {
     return 1;
   }
   const bool any_bow_force_output = std::any_of(

@@ -2,6 +2,7 @@
 
 #include "centraltd/mechanical_solver.hpp"
 #include "centraltd/string_section.hpp"
+#include "centraltd/torque_drag_centralizer.hpp"
 
 #include <optional>
 #include <string>
@@ -29,15 +30,25 @@ struct CentralizerFrictionPoint {
   Scalar centralizer_tangential_friction_n{0.0};
 };
 
+struct BodyFrictionPoint {
+  Scalar measured_depth_m{0.0};
+  Scalar body_axial_friction_n{0.0};
+  Scalar body_tangential_friction_n{0.0};
+};
+
 struct TorqueDragResult {
-  std::string status{"phase9-reduced-bow-spring-td-baseline"};
+  std::string status{"phase11-reduced-vector-centralizer-torque-baseline"};
   std::string operation_mode{"run_in"};
   std::vector<AxialForcePoint> axial_force_run_in_profile;
   std::vector<AxialForcePoint> axial_force_pull_out_profile;
   std::vector<TorquePoint> torque_profile;
+  std::vector<BodyFrictionPoint> body_axial_friction_profile;
+  std::vector<TorquePoint> body_torque_profile;
   std::vector<CentralizerFrictionPoint> centralizer_axial_friction_profile;
   std::vector<CentralizerFrictionPoint> centralizer_tangential_friction_profile;
+  std::vector<CentralizerTangentialVectorContribution> centralizer_tangential_friction_vector_profile;
   std::vector<TorquePoint> centralizer_torque_profile;
+  CentralizerTorquePartitionSummary torque_partition_summary;
   Scalar hookload_run_in_n{0.0};
   Scalar hookload_pull_out_n{0.0};
   Scalar drag_run_in_n{0.0};

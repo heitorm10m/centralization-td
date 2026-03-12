@@ -88,6 +88,18 @@ validations:
     relation: gt
     threshold: 1.0e-6
     rationale: Eccentricity should break symmetry and produce a non-zero vector resultant.
+  - id: eccentric-case-increases-centralizer-torque
+    left_case: centralizer_symmetric
+    right_case: eccentricity_breaks_symmetry
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: A non-zero bow resultant should increase the reduced centralizer torque partition.
+  - id: eccentric-case-increases-centralizer-tangential-friction
+    left_case: centralizer_symmetric
+    right_case: eccentricity_breaks_symmetry
+    metric: derived_metrics.maximum_centralizer_tangential_friction_magnitude_n
+    relation: gt
+    rationale: The tangential force proxy should follow the symmetry-breaking bow resultant.
   - id: higher-mu-increases-hookload-differential
     left_case: sensitivity_mu_low
     right_case: sensitivity_mu_high
@@ -122,3 +134,9 @@ validations:
     metric: derived_metrics.maximum_bow_resultant_magnitude_n
     relation: gt
     rationale: Reducing inner clearance advances contact onset and should increase the reduced bow resultant.
+  - id: lower-clearance-increases-centralizer-surface-torque
+    left_case: sensitivity_clearance_high
+    right_case: sensitivity_clearance_low
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Earlier bow contact should also increase the reduced centralizer torque partition.

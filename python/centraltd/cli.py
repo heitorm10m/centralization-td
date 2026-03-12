@@ -81,6 +81,10 @@ def run_stub(
         "Coupling final max profile update [N]: "
         f"{payload['coupling_final_max_profile_update_n']:.6f}"
     )
+    typer.echo(
+        "Coupling final max torque update [N.m]: "
+        f"{payload['coupling_final_max_torque_update_n_m']:.6f}"
+    )
     typer.echo(f"Coupling converged: {payload['coupling_converged']}")
     typer.echo(
         "Top effective axial load [N]: "
@@ -134,6 +138,14 @@ def run_stub(
             "Updated surface torque with detailed centralizers [N.m]: "
             f"{payload['updated_estimated_surface_torque_n_m']:.2f}"
         )
+    typer.echo(
+        "Body surface torque [N.m]: "
+        f"{payload['torque_partition_summary']['body_surface_torque_n_m']:.2f}"
+    )
+    typer.echo(
+        "Centralizer surface torque [N.m]: "
+        f"{payload['torque_partition_summary']['centralizer_surface_torque_n_m']:.2f}"
+    )
     typer.echo(
         "Contact segments: "
         f"{payload['mechanical_summary']['contact_segment_count']}"

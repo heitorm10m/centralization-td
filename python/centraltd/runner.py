@@ -35,35 +35,37 @@ except ImportError:
     cpp_core = None
 
 
-PHASE9_WARNINGS = [
-    "Phase 9 trajectory coordinates are still approximated by balanced-tangent integration of MD, inclination, and azimuth.",
+PHASE11_WARNINGS = [
+    "Phase 11 trajectory coordinates are still approximated by balanced-tangent integration of MD, inclination, and azimuth.",
     "The local trajectory frame uses a reduced parallel-transport construction, not a full differential-geometry reference implementation.",
     "The lateral equilibrium is now solved with two transverse displacement components in the local normal/binormal plane, but it is still not a full 6-DOF beam formulation.",
     "The bending term still uses the simply supported beam equivalence delta_max = 5 q L^4 / (384 E I), so the 384/5 factor is a reduced structural hypothesis.",
     "Contact still uses reduced vector active-set penalty iterations in the annulus, but detailed centralizer support loads are now post-processed bow by bow in the local frame.",
     "Each bow is distributed uniformly in angle from the centralizer angular reference and uses the reduced deflection law delta_i = max(0, e . r_i - (c_support + c_inner)).",
     "The bow constitutive law is reduced to F_i = k_blade * delta_i^p, with optional direct k/p input or fallback calibration from nominal restoring force at a reference deflection.",
-    "In the reduced torque-drag model, pipe-body drag still uses mu * N_body, while detailed centralizer drag/torque use the bow-resultant magnitude scaled by the nominal running/restoring-force ratio.",
+    "Bow resultants are reported in the local normal/binormal frame, while transformed trajectory coordinates remain stored in north/east/TVD for geometry reporting.",
+    "Pipe-body drag still uses mu * N_body, while the centralizer torque model rotates the local bow-resultant radial direction by 90 degrees to define a reduced tangential friction direction in the same frame.",
+    "The same nominal running/restoring-force ratio is currently reused as the reduced axial-friction and tangential-torque factor for centralizers, but the two roles are now tracked separately for future calibration.",
     "Run in/slackoff subtracts body plus centralizer axial friction from the local hookload increment because friction opposes downward motion; pull out/pickup adds them because friction opposes upward motion.",
-    "Rotational torque is still reduced: body torque uses a pipe-body contact radius and centralizer torque uses the bow-resultant tangential contribution times an effective centralizer contact radius.",
-    "Only the axial profile for the selected operation mode is iterated inside the reduced coupling loop; the other operational profiles remain reduced post-processing against the converged normal-reaction field.",
+    "Pipe-body and centralizer contributions are exported separately for contact, axial friction, tangential friction, and torque accumulation.",
+    "Only the axial profile for the selected operation mode is iterated inside the reduced coupling loop; torque is updated and monitored but is not yet fed back through a full torsional structural solve.",
     "Detailed bows are modeled individually, but the structural solve is still not a full 6-DOF beam/contact formulation and the global friction law remains reduced.",
 ]
 
-PHASE9_TODOS = [
+PHASE11_TODOS = [
     "TODO: evolve the reduced 2-DOF transverse model toward a fuller 3D beam formulation with rotations and torsion.",
     "TODO: refine vector contact with stronger nonlinear iteration and wall-reaction handling.",
     "TODO: calibrate the bow-spring power-law parameters against manufacturer/API data.",
+    "TODO: calibrate tangential centralizer torque factors independently from the axial running-force proxy.",
     "TODO: refine axial drag with stronger bidirectional coupling between contact state and friction propagation.",
-    "TODO: extend reduced torque and drag toward fuller bow-resolved nonlinear workflows and vector tangential contact.",
-    "TODO: implement design-space optimization workflow.",
+    "TODO: extend reduced torque and drag toward fuller bow-resolved nonlinear workflows and stronger torque-to-contact feedback.",
 ]
 
 PHASE10_VALIDATION_STATUS = "phase10-benchmark-calibration-infrastructure"
 GLOBAL_SOLVER_UPDATE_TOLERANCE_M = 1.0e-8
 
 
-def _core_supports_phase9() -> bool:
+def _core_supports_phase11() -> bool:
     if cpp_core is None:
         return False
     try:
@@ -84,16 +86,22 @@ def _core_supports_phase9() -> bool:
             (result, "minimum_standoff_estimate"),
             (result, "hookload_run_in_n"),
             (result, "torque_profile"),
+            (result, "body_torque_profile"),
+            (result, "body_axial_friction_profile"),
+            (result, "centralizer_tangential_friction_vector_profile"),
+            (result, "torque_partition_summary"),
             (result, "centralizer_model_status"),
             (result, "centralizer_torque_profile"),
             (result, "coupling_status"),
             (result, "coupling_final_max_profile_update_n"),
+            (result, "coupling_final_max_torque_update_n_m"),
             (result, "converged_axial_profile"),
             (summary, "maximum_normal_reaction_estimate_n"),
             (summary, "global_solver_iteration_count"),
             (segment, "contact_state"),
             (segment, "bow_force_details"),
             (segment, "centralizer_torque_increment_n_m"),
+            (segment, "centralizer_tangential_friction_normal_n"),
             (settings, "target_segment_length_m"),
             (settings, "global_solver_max_iterations"),
             (settings, "contact_penalty_scale"),
@@ -268,6 +276,13 @@ def _mechanical_profile_to_dict(profile: list[MechanicalSegmentResultModel] | li
             "bow_resultant_normal_n": segment.bow_resultant_normal_n,
             "bow_resultant_binormal_n": segment.bow_resultant_binormal_n,
             "bow_resultant_magnitude_n": segment.bow_resultant_magnitude_n,
+            "centralizer_tangential_direction_normal": segment.centralizer_tangential_direction_normal,
+            "centralizer_tangential_direction_binormal": segment.centralizer_tangential_direction_binormal,
+            "centralizer_tangential_friction_normal_n": segment.centralizer_tangential_friction_normal_n,
+            "centralizer_tangential_friction_binormal_n": segment.centralizer_tangential_friction_binormal_n,
+            "centralizer_tangential_friction_vector_magnitude_n": (
+                segment.centralizer_tangential_friction_vector_magnitude_n
+            ),
             "centralizer_axial_friction_n": segment.centralizer_axial_friction_n,
             "centralizer_tangential_friction_n": segment.centralizer_tangential_friction_n,
             "centralizer_torque_increment_n_m": segment.centralizer_torque_increment_n_m,
@@ -317,6 +332,44 @@ def _centralizer_friction_profile_to_dict(profile: list[Any]) -> list[dict[str, 
     ]
 
 
+def _body_friction_profile_to_dict(profile: list[Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "measured_depth_m": point.measured_depth_m,
+            "body_axial_friction_n": point.body_axial_friction_n,
+            "body_tangential_friction_n": point.body_tangential_friction_n,
+        }
+        for point in profile
+    ]
+
+
+def _centralizer_tangential_vector_profile_to_dict(profile: list[Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "measured_depth_m": point.measured_depth_m,
+            "tangential_direction_normal": point.tangential_direction_normal,
+            "tangential_direction_binormal": point.tangential_direction_binormal,
+            "tangential_friction_normal_n": point.tangential_friction_normal_n,
+            "tangential_friction_binormal_n": point.tangential_friction_binormal_n,
+            "tangential_friction_magnitude_n": point.tangential_friction_magnitude_n,
+        }
+        for point in profile
+    ]
+
+
+def _torque_partition_summary_to_dict(summary: Any) -> dict[str, Any]:
+    return {
+        "body_surface_torque_n_m": summary.body_surface_torque_n_m,
+        "centralizer_surface_torque_n_m": summary.centralizer_surface_torque_n_m,
+        "total_surface_torque_n_m": summary.total_surface_torque_n_m,
+        "body_axial_friction_sum_n": summary.body_axial_friction_sum_n,
+        "centralizer_axial_friction_sum_n": summary.centralizer_axial_friction_sum_n,
+        "body_tangential_friction_sum_n": summary.body_tangential_friction_sum_n,
+        "centralizer_tangential_friction_sum_n": summary.centralizer_tangential_friction_sum_n,
+        "status": summary.status,
+    }
+
+
 def _normal_reaction_profile_to_dict(profile: list[Any]) -> list[dict[str, Any]]:
     return [
         {
@@ -346,6 +399,10 @@ def _centralizer_traceability_to_dict(loaded_case: LoadedCase) -> list[dict[str,
                 "nominal_restoring_force_n": spec.nominal_restoring_force_n,
                 "nominal_running_force_n": spec.nominal_running_force_n,
                 "running_to_restoring_force_ratio": centralizer_running_force_ratio(spec),
+                "axial_friction_force_ratio": centralizer_running_force_ratio(spec),
+                "tangential_torque_force_ratio": centralizer_running_force_ratio(spec),
+                "axial_friction_parameter_status": "derived_from_nominal_running_to_restoring_ratio",
+                "tangential_torque_parameter_status": "derived_from_nominal_running_to_restoring_ratio",
                 "support_outer_diameter_m": spec.support_outer_diameter_m,
                 "effective_contact_diameter_m": centralizer_effective_contact_diameter_m(spec),
                 "reference_deflection_m": reference_deflection_m,
@@ -357,6 +414,8 @@ def _centralizer_traceability_to_dict(loaded_case: LoadedCase) -> list[dict[str,
                 "equivalent_reference_support_stiffness_n_per_m": (
                     equivalent_bow_support_stiffness_n_per_m(spec, hole_radius_m)
                 ),
+                "stiffness_parameter_role": "bow-restoring-force-law",
+                "torque_parameter_role": "reduced-centralizer-tangential-force-ratio",
                 "force_per_bow_at_5mm_n": bow_force_magnitude_n(spec, hole_radius_m, 0.005),
                 "force_per_bow_at_10mm_n": bow_force_magnitude_n(spec, hole_radius_m, 0.010),
                 "calibration_status": (
@@ -384,11 +443,35 @@ def _traceability_to_dict(loaded_case: LoadedCase, result: dict[str, Any]) -> di
                 "tolerance_n": loaded_case.coupling_tolerance_n,
                 "relaxation_factor": loaded_case.relaxation_factor,
                 "final_max_profile_update_n": result["coupling_final_max_profile_update_n"],
+                "final_max_torque_update_n_m": result["coupling_final_max_torque_update_n_m"],
                 "converged": result["coupling_converged"],
                 "status": result["coupling_status"],
             },
         },
         "centralizer_parameters": _centralizer_traceability_to_dict(loaded_case),
+    }
+
+
+def _convergence_metadata_to_dict(loaded_case: LoadedCase, result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "global_solver": {
+            "reference_frame": "local-trajectory-frame",
+            "transformed_coordinates": "north-east-tvd",
+            "max_iterations": loaded_case.global_solver_max_iterations,
+            "iteration_count": result["mechanical_summary"]["global_solver_iteration_count"],
+            "final_update_norm_m": result["mechanical_summary"]["global_solver_final_update_norm_m"],
+            "update_tolerance_m": GLOBAL_SOLVER_UPDATE_TOLERANCE_M,
+        },
+        "coupling": {
+            "status": result["coupling_status"],
+            "converged": result["coupling_converged"],
+            "max_iterations": loaded_case.coupling_max_iterations,
+            "iteration_count": result["coupling_iterations"],
+            "tolerance_n": loaded_case.coupling_tolerance_n,
+            "relaxation_factor": loaded_case.relaxation_factor,
+            "final_max_profile_update_n": result["coupling_final_max_profile_update_n"],
+            "final_max_torque_update_n_m": result["coupling_final_max_torque_update_n_m"],
+        },
     }
 
 
@@ -525,6 +608,32 @@ def _derived_profiles(mechanical_profile: list[dict[str, Any]]) -> dict[str, lis
             }
             for segment in mechanical_profile
         ],
+        "centralizer_tangential_friction_vector_profile": [
+            {
+                "measured_depth_m": segment["measured_depth_center_m"],
+                "tangential_direction_normal": segment["centralizer_tangential_direction_normal"],
+                "tangential_direction_binormal": segment["centralizer_tangential_direction_binormal"],
+                "tangential_friction_normal_n": segment["centralizer_tangential_friction_normal_n"],
+                "tangential_friction_binormal_n": segment["centralizer_tangential_friction_binormal_n"],
+                "tangential_friction_magnitude_n": (
+                    segment["centralizer_tangential_friction_vector_magnitude_n"]
+                ),
+            }
+            for segment in mechanical_profile
+        ],
+        "tangential_friction_vector_profile": [
+            {
+                "measured_depth_m": segment["measured_depth_center_m"],
+                "tangential_direction_normal": segment["centralizer_tangential_direction_normal"],
+                "tangential_direction_binormal": segment["centralizer_tangential_direction_binormal"],
+                "tangential_friction_normal_n": segment["centralizer_tangential_friction_normal_n"],
+                "tangential_friction_binormal_n": segment["centralizer_tangential_friction_binormal_n"],
+                "tangential_friction_magnitude_n": (
+                    segment["centralizer_tangential_friction_vector_magnitude_n"]
+                ),
+            }
+            for segment in mechanical_profile
+        ],
         "bending_moment_profile": [
             {
                 "measured_depth_m": segment["measured_depth_center_m"],
@@ -658,7 +767,7 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
     coupling_result = run_coupled_global_baseline(loaded_case)
     centralizer_summary = loaded_case.centralizer_summary()
     centralizer_summary.expanded_installation_count = len(coupling_result.placements)
-    warnings = list(PHASE9_WARNINGS)
+    warnings = list(PHASE11_WARNINGS)
     if loaded_case.reference_hole_diameter_m <= 0.0:
         warnings.append(
             "Reference hole diameter is absent, so annular contact and standoff are reported as undefined-safe defaults."
@@ -666,12 +775,13 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
 
     return {
         "backend": "python-fallback",
-        "status": "phase9-vector-bow-spring-td-baseline",
+        "status": "phase11-vector-centralizer-torque-coupled-baseline",
         "message": (
-            "Phase 9 reduced vector-frame torque and drag baseline with detailed bow-spring "
+            "Phase 11 reduced vector-frame torque and drag baseline with detailed bow-spring "
             "centralizer modeling. The lateral/contact solve still uses two transverse "
             "displacement components in the local trajectory frame, but support reactions and "
-            "centralizer torque now come from bow-by-bow reduced resultants. This remains a "
+            "centralizer torque now distinguish pipe-body and bow-spring contributions and derive "
+            "a reduced tangential centralizer torque from the bow-resultant direction. This remains a "
             "reduced engineering baseline, not a full commercial stiff-string/contact solver."
         ),
         "operation_mode": loaded_case.operation_mode,
@@ -700,11 +810,20 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
             coupling_result.torque_drag_result.axial_force_pull_out_profile
         ),
         "torque_profile": _torque_profile_to_dict(coupling_result.torque_drag_result.torque_profile),
+        "body_axial_friction_profile": _body_friction_profile_to_dict(
+            coupling_result.torque_drag_result.body_axial_friction_profile
+        ),
+        "body_torque_profile": _torque_profile_to_dict(
+            coupling_result.torque_drag_result.body_torque_profile
+        ),
         "centralizer_axial_friction_profile": _centralizer_friction_profile_to_dict(
             coupling_result.torque_drag_result.centralizer_axial_friction_profile
         ),
         "centralizer_tangential_friction_profile": _centralizer_friction_profile_to_dict(
             coupling_result.torque_drag_result.centralizer_tangential_friction_profile
+        ),
+        "centralizer_tangential_friction_vector_profile": _centralizer_tangential_vector_profile_to_dict(
+            coupling_result.torque_drag_result.centralizer_tangential_friction_vector_profile
         ),
         "centralizer_torque_profile": _torque_profile_to_dict(
             coupling_result.torque_drag_result.centralizer_torque_profile
@@ -712,6 +831,7 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         "coupling_status": coupling_result.status,
         "coupling_iterations": coupling_result.iteration_count,
         "coupling_final_max_profile_update_n": coupling_result.maximum_profile_update_n,
+        "coupling_final_max_torque_update_n_m": coupling_result.maximum_torque_update_n_m,
         "coupling_converged": coupling_result.converged,
         "converged_axial_profile": _axial_force_profile_to_dict(
             coupling_result.converged_axial_profile
@@ -726,12 +846,15 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         "minimum_standoff_estimate": coupling_result.mechanical_summary.minimum_standoff_estimate,
         "minimum_nominal_radial_clearance_m": loaded_case.minimum_nominal_radial_clearance_m(),
         "contact_nodes": coupling_result.mechanical_summary.contact_segment_count,
-        "centralizer_model_status": "phase9-detailed-bow-spring",
+        "torque_partition_summary": _torque_partition_summary_to_dict(
+            coupling_result.torque_drag_result.torque_partition_summary
+        ),
+        "centralizer_model_status": "phase11-detailed-bow-spring-vector-torque",
         "torque_and_drag_real_implemented": False,
         "torque_and_drag_status": coupling_result.torque_drag_result.status,
         "torque_drag_status": coupling_result.torque_drag_result.status,
         "warnings": warnings,
-        "todos": list(PHASE9_TODOS),
+        "todos": list(PHASE11_TODOS),
     }
 
 
@@ -757,16 +880,24 @@ def _cpp_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         "axial_force_run_in_profile": _axial_force_profile_to_dict(list(result.axial_force_run_in_profile)),
         "axial_force_pull_out_profile": _axial_force_profile_to_dict(list(result.axial_force_pull_out_profile)),
         "torque_profile": _torque_profile_to_dict(list(result.torque_profile)),
+        "body_axial_friction_profile": _body_friction_profile_to_dict(
+            list(result.body_axial_friction_profile)
+        ),
+        "body_torque_profile": _torque_profile_to_dict(list(result.body_torque_profile)),
         "centralizer_axial_friction_profile": _centralizer_friction_profile_to_dict(
             list(result.centralizer_axial_friction_profile)
         ),
         "centralizer_tangential_friction_profile": _centralizer_friction_profile_to_dict(
             list(result.centralizer_tangential_friction_profile)
         ),
+        "centralizer_tangential_friction_vector_profile": _centralizer_tangential_vector_profile_to_dict(
+            list(result.centralizer_tangential_friction_vector_profile)
+        ),
         "centralizer_torque_profile": _torque_profile_to_dict(list(result.centralizer_torque_profile)),
         "coupling_status": result.coupling_status,
         "coupling_iterations": result.coupling_iterations,
         "coupling_final_max_profile_update_n": result.coupling_final_max_profile_update_n,
+        "coupling_final_max_torque_update_n_m": result.coupling_final_max_torque_update_n_m,
         "coupling_converged": result.coupling_converged,
         "converged_axial_profile": _axial_force_profile_to_dict(list(result.converged_axial_profile)),
         "converged_normal_reaction_profile": _normal_reaction_profile_to_dict(
@@ -777,6 +908,7 @@ def _cpp_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         "minimum_standoff_estimate": result.minimum_standoff_estimate,
         "minimum_nominal_radial_clearance_m": result.minimum_nominal_radial_clearance_m,
         "contact_nodes": result.contact_nodes,
+        "torque_partition_summary": _torque_partition_summary_to_dict(result.torque_partition_summary),
         "centralizer_model_status": result.centralizer_model_status,
         "torque_and_drag_real_implemented": result.torque_and_drag_real_implemented,
         "torque_and_drag_status": result.torque_and_drag_status,
@@ -799,7 +931,7 @@ def run_stub_case(
     output: str | Path | None = None,
 ) -> tuple[LoadedCase, dict[str, Any], Path]:
     loaded_case = load_case_bundle(case_path)
-    result = _cpp_mechanical_result(loaded_case) if _core_supports_phase9() else _python_mechanical_result(loaded_case)
+    result = _cpp_mechanical_result(loaded_case) if _core_supports_phase11() else _python_mechanical_result(loaded_case)
     derived_profiles = _derived_profiles(result["mechanical_profile"])
 
     payload = {
@@ -826,8 +958,9 @@ def run_stub_case(
         },
         **result,
         **derived_profiles,
+        "convergence_metadata": _convergence_metadata_to_dict(loaded_case, result),
         "traceability": _traceability_to_dict(loaded_case, result),
-        "updated_estimated_surface_torque_n_m": result["estimated_surface_torque_n_m"],
+        "updated_estimated_surface_torque_n_m": result["torque_partition_summary"]["total_surface_torque_n_m"],
     }
 
     output_path = _resolve_output_path(loaded_case, output)

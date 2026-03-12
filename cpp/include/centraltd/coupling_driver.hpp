@@ -16,6 +16,7 @@ struct CouplingDriverResult {
   std::vector<TorquePoint> converged_torque_profile;
   std::size_t iteration_count{0};
   Scalar maximum_profile_update_n{0.0};
+  Scalar maximum_torque_update_n_m{0.0};
   bool converged{false};
   std::string status{"max_iterations_reached"};
 };

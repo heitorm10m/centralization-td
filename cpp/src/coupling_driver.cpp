@@ -70,6 +70,24 @@ std::vector<Scalar> selected_axial_profile_n(
   return axial_loads_from_points(torque_drag_result.axial_force_run_in_profile);
 }
 
+Scalar maximum_torque_profile_update_n_m(
+    const std::vector<TorquePoint>& current_profile,
+    const std::vector<TorquePoint>& previous_profile) {
+  if (current_profile.size() != previous_profile.size()) {
+    return 0.0;
+  }
+
+  Scalar maximum_update_n_m = 0.0;
+  for (Index index = 0; index < current_profile.size(); ++index) {
+    maximum_update_n_m = std::max(
+        maximum_update_n_m,
+        std::abs(
+            current_profile.at(index).local_torque_increment_n_m -
+            previous_profile.at(index).local_torque_increment_n_m));
+  }
+  return maximum_update_n_m;
+}
+
 }  // namespace
 
 CouplingDriverResult run_coupled_global_baseline(
@@ -120,6 +138,9 @@ CouplingDriverResult run_coupled_global_baseline(
     result.maximum_profile_update_n = maximum_profile_update_n;
     result.mechanical_result = std::move(mechanical_result);
     result.torque_drag_result = std::move(torque_drag_result);
+    result.maximum_torque_update_n_m = maximum_torque_profile_update_n_m(
+        result.torque_drag_result.torque_profile,
+        result.converged_torque_profile);
     result.converged_axial_profile = axial_points_from_loads(
         problem.segments,
         relaxed_axial_profile_n);
@@ -156,6 +177,9 @@ CouplingDriverResult run_coupled_global_baseline(
   result.converged_axial_profile = axial_points_from_loads(problem.segments, current_axial_profile_n);
   result.converged_normal_reaction_profile = normal_reaction_points_from_segments(
       result.mechanical_result.segment_results);
+  result.maximum_torque_update_n_m = maximum_torque_profile_update_n_m(
+      result.torque_drag_result.torque_profile,
+      result.converged_torque_profile);
   result.converged_torque_profile = result.torque_drag_result.torque_profile;
   return result;
 }

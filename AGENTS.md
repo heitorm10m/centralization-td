@@ -43,8 +43,8 @@ Esses recursos devem ser adicionados somente depois que a fisica principal estiv
 ## Estado da validacao
 
 - O projeto ja possui uma fase inicial de benchmark/calibracao interna.
+- Benchmark/calibracao interna servem para coerencia, tendencias e ajuste inicial de parametros; nao substituem validacao quantitativa externa.
 - Ainda nao existe validacao quantitativa externa suficiente para alegar equivalencia com literatura completa ou software comercial.
-- Benchmark/calibracao interna nao deve ser descrita como validacao final.
 
 ## Regras permanentes de arquitetura
 

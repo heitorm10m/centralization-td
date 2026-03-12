@@ -1,6 +1,6 @@
 # centraltd
 
-Phase 10 validation and calibration infrastructure for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, detailed bow-spring centralizer layer, and reduced coupled torque & drag baseline, and now adds benchmark cases, cross-case validation checks, calibration utilities for the reduced bow constitutive law, and richer output traceability.
+Phase 11 reduced vector centralizer-torque consolidation for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, the Phase 10 benchmark/calibration infrastructure, and now makes the bow-resultant direction a first-class reduced input to the centralizer torque partition while keeping body and centralizer contributions separated.
 
 It still does not implement a commercial stiff-string solver, a full 6-DOF beam/contact formulation, or fully nonlinear 3D contact/friction torque and drag.
 
@@ -18,7 +18,7 @@ Build the project in phases while keeping the numerical kernel in C++, and the o
 
 ## Current Phase
 
-Phase 10 currently implements the Phase 9 solver core plus:
+Phase 11 currently implements the Phase 10 infrastructure plus:
 
 - trajectory validation from MD, inclination, and azimuth
 - approximate trajectory geometry by balanced-tangent integration
@@ -42,6 +42,9 @@ Phase 10 currently implements the Phase 9 solver core plus:
 - reduced axial drag propagation for `run_in` and `pull_out` using `mu * N`, where `N` is the resultant normal reaction per segment `[N]`
 - reduced rotational torque integration using `mu * N * r`
 - separation between pipe-body drag/torque and detailed centralizer drag/torque contributions
+- explicit body-vs-centralizer torque partition in JSON/CLI outputs
+- reduced centralizer tangential friction direction obtained by rotating the local bow-resultant radial direction by 90 degrees in the local `n-b` plane
+- explicit body torque profile, centralizer torque profile, body axial-friction profile, centralizer axial-friction profile, and reduced tangential-friction vector profile
 - iterative coupling between the selected axial profile, the vector lateral/contact solve, and the reduced T&D post-processing
 - hookload estimates for run in and pull out, plus a reduced surface-torque estimate
 - canonical benchmark YAML cases for vertical, deviated, symmetric-centralizer, symmetry-breaking, and constitutive/friction sensitivity studies
@@ -67,10 +70,11 @@ What is still not validated:
 - calibration against manufacturer or laboratory bow-spring force-deflection data
 - uncertainty bounds, repeatability studies, or statistical error models
 - full nonlinear tangential contact/friction validation in 3D
+- quantitative external validation strong enough to claim equivalence with the full literature class or commercial software
 
 ## Hypotheses And Limitations
 
-The Phase 9 baseline is intentionally limited:
+The Phase 11 baseline is intentionally limited:
 
 - survey-derived coordinates remain approximate and are not a survey-processing reference implementation
 - the column response is quasi-static and reduced to two transverse displacement components in the local normal/binormal plane
@@ -87,8 +91,10 @@ The Phase 9 baseline is intentionally limited:
 - axial drag uses reduced `mu * N` propagation with operation-dependent sign conventions:
   run in/slackoff subtracts `mu * N` from the local hookload increment, while pull out/pickup adds `mu * N`
 - pipe-body torque uses reduced `mu * N_body * r_body`
-- centralizer torque uses the bow-resultant magnitude scaled by the nominal running/restoring-force ratio and multiplied by an effective centralizer contact radius
-- torque remains reduced and does not yet use full tangential vector friction or a bow-by-bow dynamic/contact solve
+- centralizer tangential friction uses a reduced local tangential direction `t_hat = rot90(R_bow / |R_bow|)` in the local `n-b` plane when `|R_bow| > 0`
+- centralizer axial friction and tangential torque currently reuse the same reduced running/restoring-force ratio, but they are tracked separately for future calibration
+- centralizer torque remains reduced and is accumulated as the sum of local tangential-force magnitudes times an effective contact radius
+- torque remains reduced and does not yet use full tangential vector friction/contact mechanics, torsional structural feedback, or a bow-by-bow dynamic/contact solve
 
 Use these outputs as structured engineering scaffolding with traceable validation checks, not as final design predictions.
 
@@ -104,6 +110,7 @@ Use these outputs as structured engineering scaffolding with traceable validatio
 - Phase 8: vector local-frame structural/contact baseline with two transverse DOFs per node and vector normal reactions
 - Phase 9: detailed bow-spring centralizer geometry, bow-by-bow nonlinear reduced forces, vector bow resultants, and centralizer-aware reduced torque contributions
 - Phase 10: benchmark suite, reduced calibration utilities, output traceability, and validation-oriented regression checks
+- Phase 11: reduced vector centralizer torque from bow-resultant direction, explicit body-vs-centralizer torque partition, and tangential-friction vector traceability
 
 See [docs/roadmap.md](/c:/Users/heitor.matos/Downloads/CS_complete_v214-20260303T125845Z-1-001/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
 
@@ -138,7 +145,7 @@ Print a case summary:
 
 ```bash
 centraltd summary examples/minimal_case.yaml
-centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase9_stub.json
+centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase11_stub.json
 centraltd benchmark-suite benchmarks/suites/phase10_validation.yaml --output-dir build/benchmarks/phase10
 centraltd calibrate-bow-spring benchmarks/calibration/force_deflection_pairs.yaml --output build/calibration/force_pairs.json
 ```
@@ -164,7 +171,7 @@ pytest
 - more robust nonlinear contact and wall reaction iteration
 - real side-force prediction with fuller friction coupling
 - full torque and drag with stronger axial/rotational coupling
-- fuller bow-by-bow tangential friction and torque resolution
+- fuller bow-by-bow tangential friction/contact resolution with stronger torsional feedback
 - external literature benchmark alignment and manufacturer-data calibration
 - quantified uncertainty/error bars for the reduced benchmark suite
 - optimizer

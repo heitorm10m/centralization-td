@@ -9,6 +9,7 @@ This directory stores the canonical benchmark and calibration assets for the cur
 - `suites/phase10_validation.yaml` defines the current benchmark suite, including cross-case validation rules and broad order-of-magnitude bounds.
 - `calibration/` contains example inputs for reduced bow-spring `k/p` fitting.
 - The current suite validates internal consistency and reduced-order trends only; it is not yet an external literature benchmark pack.
+- The current suite now also checks body-vs-centralizer torque partition consistency and reduced tangential-friction trends driven by the bow resultant.
 
 ## Commands
 

@@ -27,8 +27,10 @@ Estas instrucoes valem para o nucleo C++ do solver.
 - Preferir algoritmos robustos e simples antes de aumentar a sofisticacao.
 - Em problemas iterativos, documentar residual, criterio de convergencia e limites de iteracao.
 - Em contato penalizado, documentar o significado fisico da penalidade e onde ela entra no residual.
+- Ao converter grandezas entre frame local e coordenadas transformadas, documentar a convencao de transformacao e evitar misturar componentes vetoriais com magnitudes agregadas sem rotulo claro.
 - Em outputs, distinguir claramente vetor, magnitude, `estimate`, `reaction` e `force`.
 - Manter distinguiveis, no codigo e nos outputs, as contribuicoes do corpo da coluna e dos centralizadores para contato, atrito e torque.
+- Em acoplamentos reduzidos, manter rastreavel quais parcelas entram em atrito axial e quais entram em torque tangencial.
 - Manter convencoes de sinais explicitas para perfis axiais, contato e torque.
 
 ## Direcao tecnica do solver

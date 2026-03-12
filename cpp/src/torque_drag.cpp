@@ -1,5 +1,7 @@
 #include "centraltd/torque_drag.hpp"
 
+#include "centraltd/torque_drag_body.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -28,17 +30,6 @@ Scalar segment_tangential_weight_n(const MechanicalSegmentResult& segment) {
          segment.segment_length_m;
 }
 
-Scalar segment_friction_force_n(
-    const MechanicalSegmentResult& segment,
-    const StringSection& section) {
-  return std::max(0.0, section.friction_coefficient) *
-         std::max(0.0, segment.body_normal_reaction_estimate_n);
-}
-
-Scalar body_contact_radius_m(const StringSection& section) {
-  return std::max(0.0, 0.5 * section.outer_diameter_m);
-}
-
 }  // namespace
 
 bool is_supported_operation_mode(const std::string& operation_mode) {
@@ -61,13 +52,17 @@ TorqueDragResult run_torque_drag_baseline(
   result.axial_force_run_in_profile.resize(mechanical_profile.size());
   result.axial_force_pull_out_profile.resize(mechanical_profile.size());
   result.torque_profile.resize(mechanical_profile.size());
+  result.body_axial_friction_profile.resize(mechanical_profile.size());
+  result.body_torque_profile.resize(mechanical_profile.size());
   result.centralizer_axial_friction_profile.resize(mechanical_profile.size());
   result.centralizer_tangential_friction_profile.resize(mechanical_profile.size());
+  result.centralizer_tangential_friction_vector_profile.resize(mechanical_profile.size());
   result.centralizer_torque_profile.resize(mechanical_profile.size());
 
   Scalar axial_force_run_in_below_n = 0.0;
   Scalar axial_force_pull_out_below_n = 0.0;
   Scalar cumulative_surface_torque_n_m = 0.0;
+  Scalar cumulative_body_surface_torque_n_m = 0.0;
   Scalar cumulative_centralizer_surface_torque_n_m = 0.0;
 
   for (Index reverse_index = mechanical_profile.size(); reverse_index > 0U; --reverse_index) {
@@ -81,7 +76,8 @@ TorqueDragResult run_torque_drag_baseline(
     //   the surface hookload increment.
     // - pull_out/pickup: upward motion, so friction acts downward and
     //   increases the surface hookload increment.
-    const Scalar body_friction_force_n = segment_friction_force_n(segment, section);
+    const auto body_contribution = evaluate_body_torque_drag_contribution(segment, section);
+    const Scalar body_friction_force_n = body_contribution.axial_friction_n;
     const Scalar centralizer_axial_friction_n =
         std::max(0.0, segment.centralizer_axial_friction_n);
     const Scalar delta_run_in_n =
@@ -101,6 +97,11 @@ TorqueDragResult run_torque_drag_baseline(
     axial_force_run_in_below_n += delta_run_in_n;
     axial_force_pull_out_below_n += delta_pull_out_n;
 
+    result.body_axial_friction_profile.at(segment_index) = BodyFrictionPoint{
+        segment.measured_depth_center_m,
+        body_contribution.axial_friction_n,
+        body_contribution.tangential_friction_n,
+    };
     result.centralizer_axial_friction_profile.at(segment_index) = CentralizerFrictionPoint{
         segment.measured_depth_center_m,
         centralizer_axial_friction_n,
@@ -111,13 +112,30 @@ TorqueDragResult run_torque_drag_baseline(
         centralizer_axial_friction_n,
         std::max(0.0, segment.centralizer_tangential_friction_n),
     };
+    result.centralizer_tangential_friction_vector_profile.at(segment_index) =
+        CentralizerTangentialVectorContribution{
+            segment.measured_depth_center_m,
+            segment.centralizer_tangential_direction_normal,
+            segment.centralizer_tangential_direction_binormal,
+            segment.centralizer_tangential_friction_normal_n,
+            segment.centralizer_tangential_friction_binormal_n,
+            segment.centralizer_tangential_friction_vector_magnitude_n,
+        };
 
     const Scalar body_torque_increment_n_m =
-        body_friction_force_n * body_contact_radius_m(section);
+        body_contribution.torque_increment_n_m;
     const Scalar centralizer_torque_increment_n_m =
         std::max(0.0, segment.centralizer_torque_increment_n_m);
     const Scalar local_torque_increment_n_m =
         body_torque_increment_n_m + centralizer_torque_increment_n_m;
+    result.body_torque_profile.at(segment_index) = TorquePoint{
+        segment.measured_depth_center_m,
+        body_contribution.contact_radius_m,
+        body_torque_increment_n_m,
+        0.0,
+        body_torque_increment_n_m,
+        cumulative_body_surface_torque_n_m + (0.5 * body_torque_increment_n_m),
+    };
     result.centralizer_torque_profile.at(segment_index) = TorquePoint{
         segment.measured_depth_center_m,
         segment.centralizer_effective_contact_radius_m,
@@ -128,14 +146,21 @@ TorqueDragResult run_torque_drag_baseline(
     };
     result.torque_profile.at(segment_index) = TorquePoint{
         segment.measured_depth_center_m,
-        std::max(body_contact_radius_m(section), segment.centralizer_effective_contact_radius_m),
+        std::max(body_contribution.contact_radius_m, segment.centralizer_effective_contact_radius_m),
         body_torque_increment_n_m,
         centralizer_torque_increment_n_m,
         local_torque_increment_n_m,
         cumulative_surface_torque_n_m + (0.5 * local_torque_increment_n_m),
     };
     cumulative_surface_torque_n_m += local_torque_increment_n_m;
+    cumulative_body_surface_torque_n_m += body_torque_increment_n_m;
     cumulative_centralizer_surface_torque_n_m += centralizer_torque_increment_n_m;
+    result.torque_partition_summary.body_axial_friction_sum_n += body_contribution.axial_friction_n;
+    result.torque_partition_summary.centralizer_axial_friction_sum_n += centralizer_axial_friction_n;
+    result.torque_partition_summary.body_tangential_friction_sum_n +=
+        body_contribution.tangential_friction_n;
+    result.torque_partition_summary.centralizer_tangential_friction_sum_n +=
+        std::max(0.0, segment.centralizer_tangential_friction_n);
   }
 
   result.hookload_run_in_n = std::max(0.0, axial_force_run_in_below_n);
@@ -146,6 +171,12 @@ TorqueDragResult run_torque_drag_baseline(
   result.drag_pull_out_n = std::max(
       0.0,
       result.hookload_pull_out_n - reference_buoyant_hookload_n);
+  result.torque_partition_summary.body_surface_torque_n_m =
+      cumulative_body_surface_torque_n_m;
+  result.torque_partition_summary.centralizer_surface_torque_n_m =
+      cumulative_centralizer_surface_torque_n_m;
+  result.torque_partition_summary.total_surface_torque_n_m =
+      cumulative_surface_torque_n_m;
   result.estimated_surface_torque_n_m = cumulative_surface_torque_n_m;
   return result;
 }

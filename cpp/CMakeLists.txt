@@ -7,6 +7,8 @@ add_library(centraltd_core STATIC
     src/bow_spring_constitutive_model.cpp
     src/bow_spring_calibration.cpp
     src/bow_spring_resultants.cpp
+    src/torque_drag_body.cpp
+    src/torque_drag_centralizer.cpp
     src/trajectory_frame.cpp
     src/discretization.cpp
     src/centralizer_support.cpp

@@ -2,6 +2,7 @@
 
 #include "centraltd/bow_spring_resultants.hpp"
 #include "centraltd/discretization.hpp"
+#include "centraltd/torque_drag_centralizer.hpp"
 
 #include <optional>
 #include <string>
@@ -75,6 +76,11 @@ struct MechanicalSegmentResult {
   Scalar bow_resultant_normal_n{0.0};
   Scalar bow_resultant_binormal_n{0.0};
   Scalar bow_resultant_magnitude_n{0.0};
+  Scalar centralizer_tangential_direction_normal{0.0};
+  Scalar centralizer_tangential_direction_binormal{0.0};
+  Scalar centralizer_tangential_friction_normal_n{0.0};
+  Scalar centralizer_tangential_friction_binormal_n{0.0};
+  Scalar centralizer_tangential_friction_vector_magnitude_n{0.0};
   Scalar centralizer_axial_friction_n{0.0};
   Scalar centralizer_tangential_friction_n{0.0};
   Scalar centralizer_torque_increment_n_m{0.0};

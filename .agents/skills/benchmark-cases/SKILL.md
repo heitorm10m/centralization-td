@@ -15,6 +15,7 @@ Maintain portable, versioned benchmark inputs that can be reused across phases o
 - Keep example cases minimal but physically interpretable.
 - Prefer one canonical manifest that references reusable config fragments.
 - Document what each case is intended to exercise and what it does not yet verify.
+- State when a benchmark supports internal trend checking or calibration only, and not external quantitative validation.
 - Avoid embedding benchmark data directly in source code.
 
 ## Done Criteria

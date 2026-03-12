@@ -439,6 +439,21 @@ PYBIND11_MODULE(_core, m) {
           "bow_resultant_magnitude_n",
           &centraltd::MechanicalSegmentResult::bow_resultant_magnitude_n)
       .def_readwrite(
+          "centralizer_tangential_direction_normal",
+          &centraltd::MechanicalSegmentResult::centralizer_tangential_direction_normal)
+      .def_readwrite(
+          "centralizer_tangential_direction_binormal",
+          &centraltd::MechanicalSegmentResult::centralizer_tangential_direction_binormal)
+      .def_readwrite(
+          "centralizer_tangential_friction_normal_n",
+          &centraltd::MechanicalSegmentResult::centralizer_tangential_friction_normal_n)
+      .def_readwrite(
+          "centralizer_tangential_friction_binormal_n",
+          &centraltd::MechanicalSegmentResult::centralizer_tangential_friction_binormal_n)
+      .def_readwrite(
+          "centralizer_tangential_friction_vector_magnitude_n",
+          &centraltd::MechanicalSegmentResult::centralizer_tangential_friction_vector_magnitude_n)
+      .def_readwrite(
           "centralizer_axial_friction_n",
           &centraltd::MechanicalSegmentResult::centralizer_axial_friction_n)
       .def_readwrite(
@@ -639,6 +654,64 @@ PYBIND11_MODULE(_core, m) {
           "centralizer_tangential_friction_n",
           &centraltd::CentralizerFrictionPoint::centralizer_tangential_friction_n);
 
+  py::class_<centraltd::BodyFrictionPoint>(m, "BodyFrictionPoint")
+      .def(py::init<>())
+      .def_readwrite("measured_depth_m", &centraltd::BodyFrictionPoint::measured_depth_m)
+      .def_readwrite(
+          "body_axial_friction_n",
+          &centraltd::BodyFrictionPoint::body_axial_friction_n)
+      .def_readwrite(
+          "body_tangential_friction_n",
+          &centraltd::BodyFrictionPoint::body_tangential_friction_n);
+
+  py::class_<centraltd::CentralizerTangentialVectorContribution>(
+      m,
+      "CentralizerTangentialVectorContribution")
+      .def(py::init<>())
+      .def_readwrite(
+          "measured_depth_m",
+          &centraltd::CentralizerTangentialVectorContribution::measured_depth_m)
+      .def_readwrite(
+          "tangential_direction_normal",
+          &centraltd::CentralizerTangentialVectorContribution::tangential_direction_normal)
+      .def_readwrite(
+          "tangential_direction_binormal",
+          &centraltd::CentralizerTangentialVectorContribution::tangential_direction_binormal)
+      .def_readwrite(
+          "tangential_friction_normal_n",
+          &centraltd::CentralizerTangentialVectorContribution::tangential_friction_normal_n)
+      .def_readwrite(
+          "tangential_friction_binormal_n",
+          &centraltd::CentralizerTangentialVectorContribution::tangential_friction_binormal_n)
+      .def_readwrite(
+          "tangential_friction_magnitude_n",
+          &centraltd::CentralizerTangentialVectorContribution::tangential_friction_magnitude_n);
+
+  py::class_<centraltd::CentralizerTorquePartitionSummary>(m, "TorquePartitionSummary")
+      .def(py::init<>())
+      .def_readwrite(
+          "body_surface_torque_n_m",
+          &centraltd::CentralizerTorquePartitionSummary::body_surface_torque_n_m)
+      .def_readwrite(
+          "centralizer_surface_torque_n_m",
+          &centraltd::CentralizerTorquePartitionSummary::centralizer_surface_torque_n_m)
+      .def_readwrite(
+          "total_surface_torque_n_m",
+          &centraltd::CentralizerTorquePartitionSummary::total_surface_torque_n_m)
+      .def_readwrite(
+          "body_axial_friction_sum_n",
+          &centraltd::CentralizerTorquePartitionSummary::body_axial_friction_sum_n)
+      .def_readwrite(
+          "centralizer_axial_friction_sum_n",
+          &centraltd::CentralizerTorquePartitionSummary::centralizer_axial_friction_sum_n)
+      .def_readwrite(
+          "body_tangential_friction_sum_n",
+          &centraltd::CentralizerTorquePartitionSummary::body_tangential_friction_sum_n)
+      .def_readwrite(
+          "centralizer_tangential_friction_sum_n",
+          &centraltd::CentralizerTorquePartitionSummary::centralizer_tangential_friction_sum_n)
+      .def_readwrite("status", &centraltd::CentralizerTorquePartitionSummary::status);
+
   py::class_<centraltd::SolverStubInput>(m, "SolverStubInput")
       .def(py::init<>())
       .def_readwrite("well", &centraltd::SolverStubInput::well)
@@ -693,11 +766,20 @@ PYBIND11_MODULE(_core, m) {
           &centraltd::SolverStubResult::axial_force_pull_out_profile)
       .def_readwrite("torque_profile", &centraltd::SolverStubResult::torque_profile)
       .def_readwrite(
+          "body_axial_friction_profile",
+          &centraltd::SolverStubResult::body_axial_friction_profile)
+      .def_readwrite(
+          "body_torque_profile",
+          &centraltd::SolverStubResult::body_torque_profile)
+      .def_readwrite(
           "centralizer_axial_friction_profile",
           &centraltd::SolverStubResult::centralizer_axial_friction_profile)
       .def_readwrite(
           "centralizer_tangential_friction_profile",
           &centraltd::SolverStubResult::centralizer_tangential_friction_profile)
+      .def_readwrite(
+          "centralizer_tangential_friction_vector_profile",
+          &centraltd::SolverStubResult::centralizer_tangential_friction_vector_profile)
       .def_readwrite(
           "centralizer_torque_profile",
           &centraltd::SolverStubResult::centralizer_torque_profile)
@@ -708,6 +790,9 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "coupling_final_max_profile_update_n",
           &centraltd::SolverStubResult::coupling_final_max_profile_update_n)
+      .def_readwrite(
+          "coupling_final_max_torque_update_n_m",
+          &centraltd::SolverStubResult::coupling_final_max_torque_update_n_m)
       .def_readwrite(
           "coupling_converged",
           &centraltd::SolverStubResult::coupling_converged)
@@ -733,6 +818,9 @@ PYBIND11_MODULE(_core, m) {
           "minimum_nominal_radial_clearance_m",
           &centraltd::SolverStubResult::minimum_nominal_radial_clearance_m)
       .def_readwrite("contact_nodes", &centraltd::SolverStubResult::contact_nodes)
+      .def_readwrite(
+          "torque_partition_summary",
+          &centraltd::SolverStubResult::torque_partition_summary)
       .def_readwrite(
           "centralizer_model_status",
           &centraltd::SolverStubResult::centralizer_model_status)

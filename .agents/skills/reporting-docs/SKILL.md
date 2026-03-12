@@ -13,6 +13,7 @@ Keep project documentation aligned with the implemented scaffold and explicit ab
 
 - Document architecture, commands, and current limitations in plain technical language.
 - Distinguish implemented behavior from planned behavior.
+- Keep internal benchmark/calibration evidence clearly separate from external quantitative validation claims.
 - Keep roadmaps phased and tied to concrete deliverables.
 - Explain how to reproduce examples, tests, and generated outputs.
 - Update docs whenever interfaces, file formats, or solver contracts change.

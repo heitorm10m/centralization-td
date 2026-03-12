@@ -58,7 +58,7 @@ struct CentralizerSummary {
 };
 
 struct SolverStubResult {
-  std::string status{"phase9-vector-bow-spring-td-baseline"};
+  std::string status{"phase11-vector-centralizer-torque-coupled-baseline"};
   std::string message;
   std::string operation_mode{"run_in"};
   bool geometry_is_approximate{true};
@@ -76,12 +76,16 @@ struct SolverStubResult {
   std::vector<AxialForcePoint> axial_force_run_in_profile;
   std::vector<AxialForcePoint> axial_force_pull_out_profile;
   std::vector<TorquePoint> torque_profile;
+  std::vector<BodyFrictionPoint> body_axial_friction_profile;
+  std::vector<TorquePoint> body_torque_profile;
   std::vector<CentralizerFrictionPoint> centralizer_axial_friction_profile;
   std::vector<CentralizerFrictionPoint> centralizer_tangential_friction_profile;
+  std::vector<CentralizerTangentialVectorContribution> centralizer_tangential_friction_vector_profile;
   std::vector<TorquePoint> centralizer_torque_profile;
   std::string coupling_status{"max_iterations_reached"};
   std::size_t coupling_iterations{0};
   Scalar coupling_final_max_profile_update_n{0.0};
+  Scalar coupling_final_max_torque_update_n_m{0.0};
   bool coupling_converged{false};
   std::vector<AxialForcePoint> converged_axial_profile;
   std::vector<NormalReactionPoint> converged_normal_reaction_profile;
@@ -90,10 +94,11 @@ struct SolverStubResult {
   Scalar minimum_standoff_estimate{0.0};
   Scalar minimum_nominal_radial_clearance_m{0.0};
   std::size_t contact_nodes{0};
-  std::string centralizer_model_status{"phase9-detailed-bow-spring"};
+  CentralizerTorquePartitionSummary torque_partition_summary;
+  std::string centralizer_model_status{"phase11-detailed-bow-spring-vector-torque"};
   bool torque_and_drag_real_implemented{false};
-  std::string torque_and_drag_status{"phase9-reduced-bow-spring-td-baseline"};
-  std::string torque_drag_status{"phase9-reduced-bow-spring-td-baseline"};
+  std::string torque_and_drag_status{"phase11-reduced-vector-centralizer-torque-baseline"};
+  std::string torque_drag_status{"phase11-reduced-vector-centralizer-torque-baseline"};
   std::vector<std::string> warnings;
   std::vector<std::string> todos;
 };

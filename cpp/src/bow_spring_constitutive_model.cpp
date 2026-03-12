@@ -69,4 +69,12 @@ Scalar centralizer_running_force_ratio(const CentralizerPlacement& placement) {
   return std::max(0.0, placement.nominal_running_force_n / placement.nominal_restoring_force_n);
 }
 
+Scalar centralizer_axial_force_ratio(const CentralizerPlacement& placement) {
+  return centralizer_running_force_ratio(placement);
+}
+
+Scalar centralizer_tangential_force_ratio(const CentralizerPlacement& placement) {
+  return centralizer_running_force_ratio(placement);
+}
+
 }  // namespace centraltd

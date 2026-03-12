@@ -203,12 +203,13 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
                 centralizer_summary.min_nominal_radial_clearance_m);
 
   SolverStubResult result;
-  result.status = "phase9-vector-bow-spring-td-baseline";
+  result.status = "phase11-vector-centralizer-torque-coupled-baseline";
   result.message =
-      "Phase 9 reduced vector-frame torque and drag baseline with detailed bow-spring "
+      "Phase 11 reduced vector-frame torque and drag baseline with detailed bow-spring "
       "centralizer modeling. The lateral/contact solve still uses two transverse displacement "
       "components in the local trajectory frame, but support reactions and centralizer torque "
-      "now come from bow-by-bow reduced resultants. This remains a reduced engineering baseline, "
+      "now distinguish pipe-body and bow-spring contributions and derive a reduced tangential "
+      "centralizer torque from the bow-resultant direction. This remains a reduced engineering baseline, "
       "not a full commercial stiff-string/contact solver.";
   result.operation_mode = input.operation_mode;
   result.geometry_is_approximate = true;
@@ -225,15 +226,22 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
   result.axial_force_run_in_profile = coupled_result.torque_drag_result.axial_force_run_in_profile;
   result.axial_force_pull_out_profile = coupled_result.torque_drag_result.axial_force_pull_out_profile;
   result.torque_profile = coupled_result.torque_drag_result.torque_profile;
+  result.body_axial_friction_profile =
+      coupled_result.torque_drag_result.body_axial_friction_profile;
+  result.body_torque_profile = coupled_result.torque_drag_result.body_torque_profile;
   result.centralizer_axial_friction_profile =
       coupled_result.torque_drag_result.centralizer_axial_friction_profile;
   result.centralizer_tangential_friction_profile =
       coupled_result.torque_drag_result.centralizer_tangential_friction_profile;
+  result.centralizer_tangential_friction_vector_profile =
+      coupled_result.torque_drag_result.centralizer_tangential_friction_vector_profile;
   result.centralizer_torque_profile =
       coupled_result.torque_drag_result.centralizer_torque_profile;
   result.coupling_status = coupled_result.status;
   result.coupling_iterations = coupled_result.iteration_count;
   result.coupling_final_max_profile_update_n = coupled_result.maximum_profile_update_n;
+  result.coupling_final_max_torque_update_n_m =
+      coupled_result.maximum_torque_update_n_m;
   result.coupling_converged = coupled_result.converged;
   result.converged_axial_profile = coupled_result.converged_axial_profile;
   result.converged_normal_reaction_profile = coupled_result.converged_normal_reaction_profile;
@@ -250,10 +258,12 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
       coupled_result.mechanical_result.summary.minimum_standoff_estimate;
   result.minimum_nominal_radial_clearance_m = minimum_nominal_clearance_m;
   result.contact_nodes = coupled_result.mechanical_result.summary.contact_segment_count;
-  result.centralizer_model_status = "phase9-detailed-bow-spring";
+  result.torque_partition_summary =
+      coupled_result.torque_drag_result.torque_partition_summary;
+  result.centralizer_model_status = "phase11-detailed-bow-spring-vector-torque";
   result.torque_and_drag_real_implemented = false;
-  result.torque_and_drag_status = "phase9-reduced-bow-spring-td-baseline";
-  result.torque_drag_status = "phase9-reduced-bow-spring-td-baseline";
+  result.torque_and_drag_status = coupled_result.torque_drag_result.status;
+  result.torque_drag_status = coupled_result.torque_drag_result.status;
   result.warnings = {
       "Trajectory coordinates remain approximated by balanced-tangent integration of MD, "
       "inclination, and azimuth.",
@@ -270,12 +280,19 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
       "its reduced deflection is evaluated as max(0, e · r_i - (c_support + c_inner)).",
       "The bow constitutive law is reduced to F_i = k_blade * delta_i^p, with optional direct "
       "k/p input or fallback calibration from nominal restoring force at a reference deflection.",
+      "Bow resultants are reported in the local normal/binormal frame, while transformed "
+      "trajectory coordinates remain stored in north/east/TVD for geometry reporting.",
       "In the reduced torque-drag model, pipe-body friction still uses mu * N_body, while the "
-      "centralizer contribution uses the bow-spring resultant magnitude scaled by the nominal "
-      "running/restoring-force ratio.",
+      "centralizer contribution rotates each bow-resultant radial direction by 90 degrees in the "
+      "local normal/binormal plane to define a reduced tangential friction direction.",
+      "The same nominal running/restoring-force ratio is still reused as the reduced axial-"
+      "friction and tangential-torque factor for centralizers, but the two roles are now tracked "
+      "separately for future calibration.",
       "Run in/slackoff uses friction opposite the downward motion and therefore subtracts the "
       "body plus centralizer axial friction increments; pull out/pickup adds them because "
       "friction opposes the upward motion.",
+      "Pipe-body and centralizer contributions are exported separately for normal reaction, axial "
+      "friction, tangential friction, and torque accumulation.",
       "The coupling loop only converges the axial profile associated with the selected "
       "operation mode; the non-selected operational profiles remain reduced post-processing "
       "against the converged normal-reaction field.",
@@ -292,11 +309,11 @@ SolverStubResult run_solver_stub(const SolverStubInput& input) {
       "rotations and torsion.",
       "TODO: refine vector contact with stronger nonlinear iteration and wall-reaction handling.",
       "TODO: calibrate the bow-spring power-law parameters against manufacturer/API data.",
+      "TODO: calibrate tangential centralizer torque factors independently from the axial running-force proxy.",
       "TODO: refine axial drag with stronger bidirectional coupling between contact state and "
       "friction propagation.",
       "TODO: extend reduced torque and drag toward fuller bow-resolved nonlinear workflows and "
-      "vector tangential contact.",
-      "TODO: implement design-space optimization workflow.",
+      "stronger torque-to-contact feedback.",
   };
 
   return result;
