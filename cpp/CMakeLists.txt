@@ -7,6 +7,7 @@ add_library(centraltd_core STATIC
     src/bow_spring_constitutive_model.cpp
     src/bow_spring_calibration.cpp
     src/bow_spring_resultants.cpp
+    src/local_tangential_model.cpp
     src/torque_drag_body.cpp
     src/torque_drag_centralizer.cpp
     src/trajectory_frame.cpp
@@ -22,6 +23,7 @@ add_library(centraltd_core STATIC
     src/vector_global_solver.cpp
     src/mechanical_solver.cpp
     src/torque_drag.cpp
+    src/torsional_reduced_model.cpp
     src/coupling_driver.cpp
     src/solver_stub.cpp
 )

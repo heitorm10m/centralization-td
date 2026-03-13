@@ -96,8 +96,8 @@ int main() {
   const auto result = centraltd::run_solver_stub(build_input(sections, centralizers));
 
   if (!require(
-          result.status == "phase11-vector-centralizer-torque-coupled-baseline",
-          "Unexpected phase11 status.")) {
+          result.status == "phase14-vector-local-tangential-torque-coupled-baseline",
+          "Unexpected phase14 status.")) {
     return 1;
   }
   if (!require(result.todos.size() == 6U, "Unexpected TODO count.")) {
@@ -190,6 +190,16 @@ int main() {
           "Converged torque profile size must match segment count.")) {
     return 1;
   }
+  if (!require(
+          result.reduced_torque_accumulation_profile.size() == result.mechanical_summary.segment_count,
+          "Reduced torque accumulation profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
+          result.torsional_state_profile.size() == result.mechanical_summary.segment_count,
+          "Torsional state profile size must match segment count.")) {
+    return 1;
+  }
   if (!require(result.coupling_iterations > 0U, "Coupling loop should run at least once.")) {
     return 1;
   }
@@ -227,12 +237,13 @@ int main() {
     return 1;
   }
   if (!require(
-          result.torque_and_drag_status == "phase11-reduced-vector-centralizer-torque-baseline",
+          result.torque_and_drag_status == "phase14-reduced-unified-local-tangential-torque-baseline",
           "Unexpected torque and drag status.")) {
     return 1;
   }
   if (!require(
-          result.centralizer_model_status == "phase11-detailed-bow-spring-vector-torque",
+          result.centralizer_model_status ==
+              "phase14-detailed-bow-spring-local-tangential-vector-torque",
           "Unexpected centralizer model status.")) {
     return 1;
   }
@@ -258,8 +269,19 @@ int main() {
     return 1;
   }
   if (!require(
+          result.centralizer_tangential_direction_profile.size() ==
+              result.mechanical_summary.segment_count,
+          "Centralizer tangential direction profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
           result.centralizer_torque_profile.size() == result.mechanical_summary.segment_count,
           "Centralizer torque profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
+          result.centralizer_torque_breakdown_profile.size() == result.mechanical_summary.segment_count,
+          "Centralizer torque breakdown profile size must match segment count.")) {
     return 1;
   }
   if (!require(
@@ -273,6 +295,44 @@ int main() {
   if (!require(
           result.coupling_final_max_torque_update_n_m >= 0.0,
           "Final coupling torque update should be non-negative.")) {
+    return 1;
+  }
+  if (!require(
+          result.coupling_final_max_torsional_load_update_n_m >= 0.0,
+          "Final coupling torsional-load update should be non-negative.")) {
+    return 1;
+  }
+  if (!require(
+          result.torque_feedback_mode ==
+              "reduced-unified-local-tangential-state-fed-by-carried-torsional-state-plus-centralizer-axial-tangential-budget-and-convergence",
+          "Unexpected torque feedback mode.")) {
+    return 1;
+  }
+  if (!require(
+          result.torsional_feedback_status ==
+                  "phase11-reduced-torsional-load-and-twist-state" ||
+              result.torsional_feedback_status ==
+                  "phase14-reduced-torsional-state-fed-into-unified-local-tangential-state",
+          "Unexpected torsional feedback status.")) {
+    return 1;
+  }
+  if (!require(
+          result.local_tangential_interaction_state.size() ==
+              result.mechanical_summary.segment_count,
+          "Local tangential interaction-state profile size must match segment count.")) {
+    return 1;
+  }
+  if (!require(
+          std::any_of(
+              result.local_tangential_interaction_state.begin(),
+              result.local_tangential_interaction_state.end(),
+              [](const centraltd::LocalTangentialInteractionStatePoint& point) {
+                return point.body_tangential_mobilization >= 0.0 &&
+                       point.body_tangential_mobilization <= 1.0 &&
+                       point.local_tangential_traction_indicator >= 0.0 &&
+                       point.local_tangential_traction_indicator <= 1.0;
+              }),
+          "Local tangential state must stay bounded.")) {
     return 1;
   }
   const bool any_bow_force_output = std::any_of(
@@ -308,6 +368,17 @@ int main() {
     return 1;
   }
   if (!require(
+          !bow_active_segment->centralizer_torque_details.empty(),
+          "Active bow-resultant segments should expose per-placement torque details.")) {
+    return 1;
+  }
+  if (!require(
+          bow_active_segment->centralizer_torque_status ==
+              "phase11-reduced-contact-informed-vector-centralizer-torque",
+          "Unexpected centralizer torque status.")) {
+    return 1;
+  }
+  if (!require(
           result.mechanical_profile.front().tangent_north_east_tvd[2] >= 0.0,
           "The front tangent should still point downward in TVD.")) {
     return 1;
@@ -337,6 +408,18 @@ int main() {
           high_mu_result.estimated_surface_torque_n_m.value_or(0.0) >
               low_mu_result.estimated_surface_torque_n_m.value_or(0.0),
           "Higher friction should increase the reduced surface torque.")) {
+    return 1;
+  }
+  if (!require(
+          high_mu_result.torsional_state_profile.front().reduced_torsional_load_n_m >
+              low_mu_result.torsional_state_profile.front().reduced_torsional_load_n_m,
+          "Higher friction should increase the carried reduced surface torsional load.")) {
+    return 1;
+  }
+  if (!require(
+          high_mu_result.torsional_state_profile.front().cumulative_reduced_twist_rad >
+              low_mu_result.torsional_state_profile.front().cumulative_reduced_twist_rad,
+          "Higher friction should increase the reduced twist indicator.")) {
     return 1;
   }
 

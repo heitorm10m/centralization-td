@@ -160,10 +160,14 @@ def centralizer_running_force_ratio(placement: Any) -> float:
 
 
 def centralizer_axial_force_ratio(placement: Any) -> float:
+    if getattr(placement, "axial_force_ratio", None) is not None:
+        return max(0.0, float(placement.axial_force_ratio))
     return centralizer_running_force_ratio(placement)
 
 
 def centralizer_tangential_force_ratio(placement: Any) -> float:
+    if getattr(placement, "tangential_force_ratio", None) is not None:
+        return max(0.0, float(placement.tangential_force_ratio))
     return centralizer_running_force_ratio(placement)
 
 

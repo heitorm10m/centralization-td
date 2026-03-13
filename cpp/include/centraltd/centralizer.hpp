@@ -18,6 +18,8 @@ struct CentralizerSpec {
   Scalar inner_clearance_to_pipe_m{0.0};
   Scalar nominal_restoring_force_n{0.0};
   Scalar nominal_running_force_n{0.0};
+  std::optional<Scalar> axial_force_ratio;
+  std::optional<Scalar> tangential_force_ratio;
   std::optional<Scalar> blade_power_law_k;
   Scalar blade_power_law_p{1.0};
   std::optional<Scalar> min_contact_diameter_m;

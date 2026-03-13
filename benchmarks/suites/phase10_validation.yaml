@@ -1,5 +1,5 @@
 name: phase10-validation-benchmark-suite
-description: Canonical validation and sensitivity suite for the reduced vector local-frame solver and detailed bow-spring layer.
+description: Canonical validation and sensitivity suite for the reduced vector local-frame solver, detailed bow-spring layer, and reduced centralizer torque partition.
 cases:
   - id: vertical_simple
     case: ../cases/vertical_simple.yaml
@@ -64,6 +64,18 @@ cases:
   - id: sensitivity_clearance_high
     case: ../cases/sensitivity_clearance_high.yaml
     purpose: Larger inner clearance benchmark.
+  - id: sensitivity_torque_ratio_low
+    case: ../cases/sensitivity_torque_ratio_low.yaml
+    purpose: Lower explicit tangential centralizer-force ratio with axial ratio held fixed.
+  - id: sensitivity_torque_ratio_high
+    case: ../cases/sensitivity_torque_ratio_high.yaml
+    purpose: Higher explicit tangential centralizer-force ratio with axial ratio held fixed.
+  - id: sensitivity_torque_feedback_low
+    case: ../cases/sensitivity_torque_feedback_low.yaml
+    purpose: Lower tangential-demand case for the reduced axial-tangential centralizer friction budget.
+  - id: sensitivity_torque_feedback_high
+    case: ../cases/sensitivity_torque_feedback_high.yaml
+    purpose: Higher tangential-demand case that activates the reduced axial-tangential centralizer friction budget.
 validations:
   - id: curvature-increases-lateral-severity
     left_case: vertical_simple
@@ -140,3 +152,81 @@ validations:
     metric: derived_metrics.estimated_centralizer_surface_torque_n_m
     relation: gt
     rationale: Earlier bow contact should also increase the reduced centralizer torque partition.
+  - id: higher-torque-ratio-increases-centralizer-surface-torque
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Increasing only the explicit tangential centralizer-force ratio should increase the reduced centralizer torque partition.
+  - id: higher-torque-ratio-increases-local-centralizer-torque
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_torque_increment_n_m
+    relation: gt
+    rationale: The local centralizer torque increment should scale with the explicit tangential force ratio when the bow resultant is already non-zero.
+  - id: higher-torque-ratio-increases-reduced-twist
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_cumulative_reduced_twist_rad
+    relation: gt
+    rationale: Stronger local centralizer torque demand should increase the reduced torsional twist indicator.
+  - id: higher-torque-ratio-increases-local-tangential-demand-factor
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_tangential_demand_factor
+    relation: gt
+    rationale: A stronger carried torsional state should now mobilize a larger local centralizer tangential-demand factor.
+  - id: higher-torque-ratio-increases-local-tangential-mobilization
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_local_tangential_mobilization
+    relation: gt
+    rationale: The stronger carried torsional state should increase the shared reduced local tangential mobilization state.
+  - id: higher-torque-ratio-increases-local-torsional-slip-indicator
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_torsional_slip_indicator
+    relation: gt
+    rationale: The local reduced torsional slip indicator |twist_rate| * r_eff should grow with the stronger torque-ratio case.
+  - id: stronger-tangential-demand-still-increases-centralizer-surface-torque
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Even under the reduced friction budget, higher tangential demand should still raise the centralizer torque partition.
+  - id: stronger-tangential-demand-reduces-remaining-centralizer-axial-friction
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.centralizer_axial_friction_sum_n
+    relation: lt
+    rationale: Once the reduced axial-tangential friction budget is activated, higher tangential demand should reduce the remaining axial centralizer friction capacity.
+  - id: stronger-tangential-demand-lowers-friction-interaction-scale
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.minimum_centralizer_friction_interaction_scale
+    relation: lt
+    rationale: The interaction scale should drop below the low-demand case when the reduced friction budget becomes active.
+  - id: higher-mu-increases-reduced-torsional-load
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_reduced_torsional_load_n_m
+    relation: gt
+    rationale: Higher pipe-body friction should also increase the carried reduced torsional-load state.
+  - id: higher-mu-increases-body-surface-torque
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.estimated_body_surface_torque_n_m
+    relation: gt
+    rationale: Stronger pipe-body friction should still raise the separated reduced body torque partition.
+  - id: higher-mu-increases-local-body-tangential-demand-factor
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_body_tangential_demand_factor
+    relation: gt
+    rationale: The carried reduced torsional state should now also mobilize the local pipe-body tangential law.
+  - id: higher-mu-increases-local-body-tangential-mobilization
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_body_tangential_mobilization
+    relation: gt
+    rationale: The shared reduced local tangential state should show higher body mobilization in the higher-friction case.

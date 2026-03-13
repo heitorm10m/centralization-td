@@ -162,26 +162,28 @@ Explicit limitations of Phase 10:
 - The structural/contact core is still the reduced Phase 9 model, not a full 6-DOF stiff-string beam/contact formulation.
 - Global torque and drag remain reduced engineering estimates even when the benchmark checks pass.
 
-## Phase 11
+## Phases 11-14
 
 What now exists:
 
-- Reduced centralizer tangential-friction direction derived explicitly from the local bow-resultant direction in the `n-b` frame
+- Reduced centralizer tangential-friction direction derived from a contact-informed effective radial direction in the `n-b` frame, blending the local bow-resultant direction with the local contact direction
 - Explicit separation between pipe-body and centralizer contributions for axial friction and torque accumulation
-- JSON/CLI outputs for `body_torque_profile`, `centralizer_torque_profile`, `body_axial_friction_profile`, `centralizer_axial_friction_profile`, reduced tangential-friction vectors, torque partition summary, and coupling torque-update metadata
-- Additional regression checks for symmetry breaking, centralizer torque trends, and partition consistency
-- Traceability fields clarifying which quantities are local-frame vectors, transformed coordinates, scalar magnitudes, and reduced estimates
+- A reduced torsional-load accumulation layer plus a GJ-based reduced twist indicator profile propagated from the body + centralizer torque partition
+- The carried reduced torsional state now feeds a shared reduced local tangential-state layer with slip indicator, bounded mobilization, traction-indicator proxy, and reduced regime classification before the pipe body and centralizer laws are applied
+- JSON/CLI outputs for `body_torque_profile`, `centralizer_torque_profile`, `body_axial_friction_profile`, `centralizer_axial_friction_profile`, `local_tangential_interaction_state`, `local_tangential_state`, `local_tangential_mobilization_profile`, `local_body_tangential_interaction_state`, `local_centralizer_tangential_interaction_state`, reduced tangential-direction/vector profiles, reduced torsional-state profiles, torque partition summary, and coupling torque/torsional-update metadata
+- Additional regression checks for symmetry breaking, centralizer torque trends, partition consistency, and reduced axial-tangential friction-budget feedback
+- Traceability fields clarifying which quantities are local-frame vectors, transformed coordinates, scalar magnitudes, reduced estimates, and per-placement centralizer torque increments
 
-Explicit limitations of Phase 11:
+Explicit limitations of Phases 11-14:
 
 - The structural/contact solve is still the reduced 2-DOF local-frame model from Phases 8-10, not a full 6-DOF stiff-string beam/contact formulation.
-- The centralizer tangential direction is still a reduced proxy obtained by rotating the local bow-resultant radial direction by 90 degrees.
-- The same nominal running/restoring-force ratio is still reused for reduced centralizer axial friction and reduced centralizer tangential torque, although the two roles are now tracked separately for future calibration.
-- Torque is monitored through the coupling loop but is not yet fed back through a full torsional structural solve.
+- The centralizer tangential direction is still a reduced proxy: it rotates an effective local radial direction built from bow-resultant and contact-direction information rather than solving a full tangential contact law.
+- Reduced centralizer axial friction and reduced centralizer tangential torque accept separate force-ratio parameters, but still fall back to the same nominal running/restoring-force ratio when those roles are not yet calibrated independently.
+- Torque now participates in the reduced coupling convergence criterion, in a reduced axial-tangential friction budget for the centralizer, in a carried reduced torsional-load/twist state, and in a shared reduced local tangential-state layer for both body and centralizer, but it is not yet fed back through a full torsional structural solve or a fully coupled tangential-contact law.
 - External quantitative validation remains insufficient to claim equivalence with the full literature class or commercial software.
 
 ## Working Rules
 
 - Keep SI units internal even if external reports later expose oilfield units.
 - Keep input data externalized in YAML instead of embedding cases in solver code.
-- Treat Phase 11 mechanical and torque/drag outputs, and the Phase 10 validation overlays built on them, as limited reduced-order mechanics rather than final engineering predictions.
+- Treat the current Phase 14 mechanical and torque/drag outputs, and the Phase 10 validation overlays built on them, as limited reduced-order mechanics rather than final engineering predictions.

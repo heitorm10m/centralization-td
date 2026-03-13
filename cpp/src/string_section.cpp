@@ -29,8 +29,17 @@ Scalar StringSection::second_moment_of_area_m4() const noexcept {
          (std::pow(outer_diameter_m, 4.0) - std::pow(inner_diameter_m, 4.0));
 }
 
+Scalar StringSection::polar_moment_of_area_m4() const noexcept {
+  return (kPi / 32.0) *
+         (std::pow(outer_diameter_m, 4.0) - std::pow(inner_diameter_m, 4.0));
+}
+
 Scalar StringSection::bending_stiffness_n_m2() const noexcept {
   return young_modulus_pa * second_moment_of_area_m4();
+}
+
+Scalar StringSection::torsional_stiffness_n_m2() const noexcept {
+  return shear_modulus_pa * polar_moment_of_area_m4();
 }
 
 Scalar StringSection::displaced_area_m2() const noexcept {

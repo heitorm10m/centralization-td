@@ -73,6 +73,12 @@ def _max_value(items: Sequence[Mapping[str, Any]], key: str) -> float:
     return max(float(item[key]) for item in items)
 
 
+def _min_value(items: Sequence[Mapping[str, Any]], key: str, default: float = 0.0) -> float:
+    if not items:
+        return default
+    return min(float(item[key]) for item in items)
+
+
 def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
     centralizer_parameters = payload.get("traceability", {}).get("centralizer_parameters", [])
     mechanical_profile = payload["mechanical_profile"]
@@ -103,6 +109,43 @@ def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
             payload.get("centralizer_tangential_friction_vector_profile", []),
             "tangential_friction_magnitude_n",
         ),
+        "minimum_centralizer_friction_interaction_scale": _min_value(
+            payload.get("centralizer_tangential_direction_profile", []),
+            "friction_interaction_scale",
+            default=1.0,
+        ),
+        "maximum_centralizer_torsional_slip_indicator": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "centralizer_torsional_slip_indicator",
+        ),
+        "maximum_body_torsional_slip_indicator": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "body_torsional_slip_indicator",
+        ),
+        "maximum_local_tangential_mobilization": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "local_tangential_mobilization",
+        ),
+        "maximum_body_tangential_mobilization": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "body_tangential_mobilization",
+        ),
+        "maximum_centralizer_tangential_mobilization": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "centralizer_tangential_mobilization",
+        ),
+        "maximum_centralizer_tangential_demand_factor": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "centralizer_tangential_demand_factor",
+        ),
+        "maximum_body_tangential_demand_factor": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "body_tangential_demand_factor",
+        ),
+        "maximum_local_tangential_traction_indicator": _max_value(
+            payload.get("local_tangential_interaction_state", []),
+            "local_tangential_traction_indicator",
+        ),
         "maximum_reference_support_stiffness_n_per_m": max(
             (
                 float(item["equivalent_reference_support_stiffness_n_per_m"])
@@ -125,15 +168,33 @@ def _derived_metrics(payload: Mapping[str, Any]) -> dict[str, float]:
             payload["mechanical_summary"]["global_solver_final_update_norm_m"]
         ),
         "estimated_surface_torque_n_m": float(payload["estimated_surface_torque_n_m"] or 0.0),
+        "updated_estimated_surface_torque_n_m": float(
+            payload["updated_estimated_surface_torque_n_m"] or 0.0
+        ),
         "estimated_body_surface_torque_n_m": float(
             torque_partition_summary.get("body_surface_torque_n_m", 0.0)
         ),
         "estimated_centralizer_surface_torque_n_m": float(
             torque_partition_summary.get("centralizer_surface_torque_n_m", 0.0)
         ),
+        "maximum_reduced_torsional_load_n_m": _max_value(
+            payload.get("torsional_state_profile", []),
+            "reduced_torsional_load_n_m",
+        ),
+        "maximum_cumulative_reduced_twist_rad": _max_value(
+            payload.get("torsional_state_profile", []),
+            "cumulative_reduced_twist_rad",
+        ),
+        "centralizer_axial_friction_sum_n": float(
+            torque_partition_summary.get("centralizer_axial_friction_sum_n", 0.0)
+        ),
         "torque_partition_residual_n_m": abs(
             float(torque_partition_summary.get("total_surface_torque_n_m", 0.0))
             - float(payload["estimated_surface_torque_n_m"] or 0.0)
+        ),
+        "torsional_feedback_gap_n_m": abs(
+            float(payload["updated_estimated_surface_torque_n_m"] or 0.0)
+            - float(torque_partition_summary.get("total_surface_torque_n_m", 0.0))
         ),
     }
 
@@ -194,11 +255,6 @@ def _generic_case_checks(payload: Mapping[str, Any], derived_metrics: Mapping[st
                     )
                 )
                 <= 1.0e-9
-                and abs(
-                    float(payload["updated_estimated_surface_torque_n_m"])
-                    - float(payload["torque_partition_summary"]["total_surface_torque_n_m"])
-                )
-                <= 1.0e-9
             ),
             "details": dict(payload["torque_partition_summary"]),
         },
@@ -217,9 +273,128 @@ def _generic_case_checks(payload: Mapping[str, Any], derived_metrics: Mapping[st
             },
         },
         {
+            "id": "torsional-profile-lengths",
+            "passed": (
+                len(payload.get("reduced_torque_accumulation_profile", []))
+                == len(payload["torque_profile"])
+                and len(payload.get("torsional_state_profile", []))
+                == len(payload["torque_profile"])
+                and len(payload.get("local_tangential_interaction_state", []))
+                == len(payload["torque_profile"])
+                and len(payload.get("local_tangential_state", []))
+                == len(payload["torque_profile"])
+                and len(payload.get("local_tangential_mobilization_profile", []))
+                == len(payload["torque_profile"])
+            ),
+            "details": {
+                "torque_profile": len(payload["torque_profile"]),
+                "reduced_torque_accumulation_profile": len(
+                    payload.get("reduced_torque_accumulation_profile", [])
+                ),
+                "torsional_state_profile": len(payload.get("torsional_state_profile", [])),
+                "local_tangential_interaction_state": len(
+                    payload.get("local_tangential_interaction_state", [])
+                ),
+                "local_tangential_state": len(payload.get("local_tangential_state", [])),
+                "local_tangential_mobilization_profile": len(
+                    payload.get("local_tangential_mobilization_profile", [])
+                ),
+            },
+        },
+        {
+            "id": "updated-partition-profile-lengths",
+            "passed": (
+                len(payload.get("updated_body_torque_profile", [])) == len(payload["torque_profile"])
+                and len(payload.get("updated_centralizer_torque_profile", []))
+                == len(payload["torque_profile"])
+            ),
+            "details": {
+                "torque_profile": len(payload["torque_profile"]),
+                "updated_body_torque_profile": len(payload.get("updated_body_torque_profile", [])),
+                "updated_centralizer_torque_profile": len(
+                    payload.get("updated_centralizer_torque_profile", [])
+                ),
+            },
+        },
+        {
+            "id": "local-tangential-split-profile-lengths",
+            "passed": (
+                len(payload.get("local_body_tangential_interaction_state", []))
+                == len(payload["torque_profile"])
+                and len(payload.get("local_centralizer_tangential_interaction_state", []))
+                == len(payload["torque_profile"])
+            ),
+            "details": {
+                "torque_profile": len(payload["torque_profile"]),
+                "local_body_tangential_interaction_state": len(
+                    payload.get("local_body_tangential_interaction_state", [])
+                ),
+                "local_centralizer_tangential_interaction_state": len(
+                    payload.get("local_centralizer_tangential_interaction_state", [])
+                ),
+            },
+        },
+        {
+            "id": "torsional-state-surface-load",
+            "passed": (
+                not payload.get("torsional_state_profile")
+                or abs(
+                    float(payload["updated_estimated_surface_torque_n_m"] or 0.0)
+                    - float(payload["torsional_state_profile"][0]["reduced_torsional_load_n_m"])
+                )
+                <= 1.0e-9
+            ),
+            "details": {
+                "updated_estimated_surface_torque_n_m": payload.get(
+                    "updated_estimated_surface_torque_n_m"
+                ),
+                "torsional_state_surface_load_n_m": (
+                    None
+                    if not payload.get("torsional_state_profile")
+                    else payload["torsional_state_profile"][0]["reduced_torsional_load_n_m"]
+                ),
+            },
+        },
+        {
+            "id": "torsional-feedback-gap",
+            "passed": derived_metrics["torsional_feedback_gap_n_m"]
+            <= max(
+                float(payload["inputs"]["coupling_torque_tolerance_n_m"]),
+                float(payload.get("coupling_final_max_torsional_load_update_n_m", 0.0)),
+            )
+            + 1.0e-9,
+            "details": {
+                "torsional_feedback_gap_n_m": derived_metrics["torsional_feedback_gap_n_m"],
+                "coupling_torque_tolerance_n_m": payload["inputs"]["coupling_torque_tolerance_n_m"],
+                "coupling_final_max_torsional_load_update_n_m": payload.get(
+                    "coupling_final_max_torsional_load_update_n_m",
+                    0.0,
+                ),
+            },
+        },
+        {
             "id": "finite-derived-metrics",
             "passed": all(_is_finite_number(value) for value in derived_metrics.values()),
             "details": dict(derived_metrics),
+        },
+        {
+            "id": "bounded-local-tangential-state",
+            "passed": all(
+                0.0 <= float(point.get("local_tangential_mobilization", 0.0)) <= 1.0
+                and 0.0 <= float(point.get("body_tangential_mobilization", 0.0)) <= 1.0
+                and 0.0 <= float(point.get("centralizer_tangential_mobilization", 0.0)) <= 1.0
+                and 0.0 <= float(point.get("local_tangential_traction_indicator", 0.0)) <= 1.0
+                and 0.0 <= float(point.get("body_tangential_traction_indicator", 0.0)) <= 1.0
+                and 0.0 <= float(point.get("centralizer_tangential_traction_indicator", 0.0))
+                <= 1.0
+                for point in payload.get("local_tangential_interaction_state", [])
+            ),
+            "details": {
+                "local_tangential_interaction_state": payload.get(
+                    "local_tangential_interaction_state",
+                    [],
+                ),
+            },
         },
     ]
     return checks

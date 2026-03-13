@@ -45,6 +45,12 @@ void CentralizerSpec::validate() const {
   if (nominal_running_force_n <= 0.0) {
     throw ValidationError("Centralizer nominal running force must be positive.");
   }
+  if (axial_force_ratio.has_value() && axial_force_ratio.value() < 0.0) {
+    throw ValidationError("Centralizer axial_force_ratio must be non-negative when provided.");
+  }
+  if (tangential_force_ratio.has_value() && tangential_force_ratio.value() < 0.0) {
+    throw ValidationError("Centralizer tangential_force_ratio must be non-negative when provided.");
+  }
   if (blade_power_law_k.has_value() && blade_power_law_k.value() <= 0.0) {
     throw ValidationError("Centralizer blade_power_law_k must be positive when provided.");
   }

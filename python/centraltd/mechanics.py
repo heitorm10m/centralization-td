@@ -13,7 +13,10 @@ from .bow_spring import (
 )
 from .frames import build_frame_nodes, interpolate_frame
 from .models import LoadedCase, StringSectionModel
-from .torque_drag_centralizer import evaluate_centralizer_torque_contribution
+from .torque_drag_centralizer import (
+    CentralizerPlacementTorqueContributionModel,
+    evaluate_centralizer_torque_contribution,
+)
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:
@@ -73,6 +76,8 @@ class CentralizerPlacementModel:
     min_contact_diameter_m: float | None
     max_contact_diameter_m: float | None
     influence_length_m: float
+    axial_force_ratio: float | None
+    tangential_force_ratio: float | None
 
 
 @dataclass(slots=True)
@@ -261,15 +266,21 @@ class MechanicalSegmentResultModel:
     bow_resultant_normal_n: float
     bow_resultant_binormal_n: float
     bow_resultant_magnitude_n: float
+    centralizer_effective_radial_direction_normal: float
+    centralizer_effective_radial_direction_binormal: float
     centralizer_tangential_direction_normal: float
     centralizer_tangential_direction_binormal: float
     centralizer_tangential_friction_normal_n: float
     centralizer_tangential_friction_binormal_n: float
     centralizer_tangential_friction_vector_magnitude_n: float
+    centralizer_projected_contact_normal_n: float
+    centralizer_friction_interaction_scale: float
     centralizer_axial_friction_n: float
     centralizer_tangential_friction_n: float
     centralizer_torque_increment_n_m: float
     centralizer_effective_contact_radius_m: float
+    centralizer_torque_details: list[CentralizerPlacementTorqueContributionModel]
+    centralizer_torque_status: str
     nearby_centralizer_count: int
     contact_iteration_count: int
     contact_state: str
@@ -352,6 +363,8 @@ def expand_centralizer_placements(loaded_case: LoadedCase) -> list[CentralizerPl
                     min_contact_diameter_m=spec.min_contact_diameter_m,
                     max_contact_diameter_m=spec.max_contact_diameter_m,
                     influence_length_m=spec.spacing_hint_m,
+                    axial_force_ratio=spec.axial_force_ratio,
+                    tangential_force_ratio=spec.tangential_force_ratio,
                 )
             )
 
@@ -1038,9 +1051,6 @@ def run_mechanical_with_axial_profile(
                 solution.lateral_displacement_binormal_m,
             ),
         )
-        centralizer_torque_contribution = evaluate_centralizer_torque_contribution(
-            bow_segment_result
-        )
         total_normal_reaction_vector_n_b = (
             bow_segment_result.bow_resultant_vector_n_b[0] + solution.body_normal_reaction_vector_n_b[0],
             bow_segment_result.bow_resultant_vector_n_b[1] + solution.body_normal_reaction_vector_n_b[1],
@@ -1052,6 +1062,11 @@ def run_mechanical_with_axial_profile(
                 total_normal_reaction_vector_n_b[0] / total_normal_reaction_magnitude_n,
                 total_normal_reaction_vector_n_b[1] / total_normal_reaction_magnitude_n,
             )
+        centralizer_torque_contribution = evaluate_centralizer_torque_contribution(
+            bow_segment_result,
+            contact_direction_n_b,
+            solution.body_normal_reaction_vector_n_b,
+        )
 
         result = MechanicalSegmentResultModel(
             measured_depth_start_m=segment.measured_depth_start_m,
@@ -1129,6 +1144,12 @@ def run_mechanical_with_axial_profile(
             bow_resultant_normal_n=bow_segment_result.bow_resultant_vector_n_b[0],
             bow_resultant_binormal_n=bow_segment_result.bow_resultant_vector_n_b[1],
             bow_resultant_magnitude_n=bow_segment_result.bow_resultant_magnitude_n,
+            centralizer_effective_radial_direction_normal=(
+                centralizer_torque_contribution.effective_radial_direction_n_b[0]
+            ),
+            centralizer_effective_radial_direction_binormal=(
+                centralizer_torque_contribution.effective_radial_direction_n_b[1]
+            ),
             centralizer_tangential_direction_normal=(
                 centralizer_torque_contribution.tangential_direction_n_b[0]
             ),
@@ -1144,6 +1165,12 @@ def run_mechanical_with_axial_profile(
             centralizer_tangential_friction_vector_magnitude_n=(
                 centralizer_torque_contribution.tangential_friction_vector_magnitude_n
             ),
+            centralizer_projected_contact_normal_n=(
+                centralizer_torque_contribution.projected_contact_normal_n
+            ),
+            centralizer_friction_interaction_scale=(
+                centralizer_torque_contribution.friction_interaction_scale
+            ),
             centralizer_axial_friction_n=centralizer_torque_contribution.axial_friction_n,
             centralizer_tangential_friction_n=(
                 centralizer_torque_contribution.tangential_friction_n
@@ -1154,6 +1181,10 @@ def run_mechanical_with_axial_profile(
             centralizer_effective_contact_radius_m=(
                 centralizer_torque_contribution.effective_contact_radius_m
             ),
+            centralizer_torque_details=list(
+                centralizer_torque_contribution.placement_contributions
+            ),
+            centralizer_torque_status=centralizer_torque_contribution.status,
             nearby_centralizer_count=node.nearby_centralizer_count,
             contact_iteration_count=global_result.iteration_count,
             contact_state=(

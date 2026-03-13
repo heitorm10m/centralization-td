@@ -16,6 +16,7 @@ struct DiscretizationSettings {
   Scalar contact_penalty_scale{25.0};
   std::size_t coupling_max_iterations{6};
   Scalar coupling_tolerance_n{25.0};
+  Scalar coupling_torque_tolerance_n_m{5.0};
   Scalar relaxation_factor{0.5};
   std::string frame_method{"parallel-transport"};
 
@@ -29,6 +30,8 @@ struct CentralizerPlacement {
   Scalar support_outer_diameter_m{0.0};
   Scalar nominal_restoring_force_n{0.0};
   Scalar nominal_running_force_n{0.0};
+  std::optional<Scalar> axial_force_ratio;
+  std::optional<Scalar> tangential_force_ratio;
   std::size_t number_of_bows{6U};
   Scalar angular_orientation_reference_deg{0.0};
   Scalar inner_clearance_to_pipe_m{0.0};

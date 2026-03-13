@@ -70,10 +70,16 @@ Scalar centralizer_running_force_ratio(const CentralizerPlacement& placement) {
 }
 
 Scalar centralizer_axial_force_ratio(const CentralizerPlacement& placement) {
+  if (placement.axial_force_ratio.has_value()) {
+    return std::max(0.0, placement.axial_force_ratio.value());
+  }
   return centralizer_running_force_ratio(placement);
 }
 
 Scalar centralizer_tangential_force_ratio(const CentralizerPlacement& placement) {
+  if (placement.tangential_force_ratio.has_value()) {
+    return std::max(0.0, placement.tangential_force_ratio.value());
+  }
   return centralizer_running_force_ratio(placement);
 }
 

@@ -375,8 +375,16 @@ class StringSectionModel:
         return (PI / 64.0) * ((self.outer_diameter_m**4) - (self.inner_diameter_m**4))
 
     @property
+    def polar_moment_of_area_m4(self) -> float:
+        return (PI / 32.0) * ((self.outer_diameter_m**4) - (self.inner_diameter_m**4))
+
+    @property
     def bending_stiffness_n_m2(self) -> float:
         return self.young_modulus_pa * self.second_moment_of_area_m4
+
+    @property
+    def torsional_stiffness_n_m2(self) -> float:
+        return self.shear_modulus_pa * self.polar_moment_of_area_m4
 
     @property
     def displaced_area_m2(self) -> float:
@@ -528,6 +536,8 @@ class CentralizerSpecModel:
     nominal_restoring_force_n: float
     nominal_running_force_n: float
     spacing_hint_m: float
+    axial_force_ratio: float | None = None
+    tangential_force_ratio: float | None = None
     blade_power_law_k: float | None = None
     blade_power_law_p: float = 1.0
     min_contact_diameter_m: float | None = None
@@ -587,6 +597,8 @@ class CentralizerSpecModel:
             ),
             nominal_restoring_force_n=_require_float(raw, "nominal_restoring_force_n", context),
             nominal_running_force_n=_require_float(raw, "nominal_running_force_n", context),
+            axial_force_ratio=_optional_float(raw, "axial_force_ratio", context),
+            tangential_force_ratio=_optional_float(raw, "tangential_force_ratio", context),
             blade_power_law_k=_optional_float(raw, "blade_power_law_k", context),
             blade_power_law_p=(
                 _optional_float(raw, "blade_power_law_p", context) or 1.0
@@ -613,6 +625,12 @@ class CentralizerSpecModel:
             raise ConfigError(f"{context}.nominal_restoring_force_n must be positive.")
         if self.nominal_running_force_n <= 0.0:
             raise ConfigError(f"{context}.nominal_running_force_n must be positive.")
+        if self.axial_force_ratio is not None and self.axial_force_ratio < 0.0:
+            raise ConfigError(f"{context}.axial_force_ratio must be non-negative when provided.")
+        if self.tangential_force_ratio is not None and self.tangential_force_ratio < 0.0:
+            raise ConfigError(
+                f"{context}.tangential_force_ratio must be non-negative when provided."
+            )
         if self.blade_power_law_k is not None and self.blade_power_law_k <= 0.0:
             raise ConfigError(f"{context}.blade_power_law_k must be positive when provided.")
         if self.blade_power_law_p <= 0.0:
@@ -743,6 +761,7 @@ class CaseDefinition:
     contact_penalty_scale: float | None = None
     coupling_max_iterations: int | None = None
     coupling_tolerance_n: float | None = None
+    coupling_torque_tolerance_n_m: float | None = None
     relaxation_factor: float | None = None
     frame_method: str = "parallel-transport"
 
@@ -769,6 +788,11 @@ class CaseDefinition:
                 else _require_int(raw, "coupling_max_iterations", context)
             ),
             coupling_tolerance_n=_optional_float(raw, "coupling_tolerance_n", context),
+            coupling_torque_tolerance_n_m=_optional_float(
+                raw,
+                "coupling_torque_tolerance_n_m",
+                context,
+            ),
             relaxation_factor=_optional_float(raw, "relaxation_factor", context),
             frame_method=_optional_text(raw, "frame_method", "parallel-transport")
             or "parallel-transport",
@@ -789,6 +813,13 @@ class CaseDefinition:
             raise ConfigError("case.coupling_max_iterations must be at least one when provided.")
         if self.coupling_tolerance_n is not None and self.coupling_tolerance_n <= 0.0:
             raise ConfigError("case.coupling_tolerance_n must be positive when provided.")
+        if (
+            self.coupling_torque_tolerance_n_m is not None
+            and self.coupling_torque_tolerance_n_m <= 0.0
+        ):
+            raise ConfigError(
+                "case.coupling_torque_tolerance_n_m must be positive when provided."
+            )
         if self.relaxation_factor is not None and (
             self.relaxation_factor <= 0.0 or self.relaxation_factor > 1.0
         ):
@@ -884,6 +915,14 @@ class LoadedCase:
             25.0
             if self.definition.coupling_tolerance_n is None
             else self.definition.coupling_tolerance_n
+        )
+
+    @property
+    def coupling_torque_tolerance_n_m(self) -> float:
+        return (
+            5.0
+            if self.definition.coupling_torque_tolerance_n_m is None
+            else self.definition.coupling_torque_tolerance_n_m
         )
 
     @property

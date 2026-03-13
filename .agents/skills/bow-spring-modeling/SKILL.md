@@ -10,6 +10,7 @@ Implement bow-spring centralizers as explicit, physically interpretable componen
 # Rules
 
 - Model bows individually when this skill is active.
+- Do not collapse bow-by-bow behavior back into a single equivalent scalar support without explicit justification and honest labeling.
 - Keep bow geometry, constitutive law, and resultant calculation in separate modules.
 - Use honest names for provisional parameters and outputs.
 - Support future calibration by keeping constitutive parameters explicit.

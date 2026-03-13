@@ -1,6 +1,6 @@
 # centraltd
 
-Phase 11 reduced vector centralizer-torque consolidation for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, the Phase 10 benchmark/calibration infrastructure, and now makes the bow-resultant direction a first-class reduced input to the centralizer torque partition while keeping body and centralizer contributions separated.
+Phase 14 reduced local tangential-state consolidation for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, the Phase 10 benchmark/calibration infrastructure, and now carries a shared reduced local tangential-state layer on top of the bow-resultant, body-vs-centralizer torque partition, and reduced torsional-load/twist baseline.
 
 It still does not implement a commercial stiff-string solver, a full 6-DOF beam/contact formulation, or fully nonlinear 3D contact/friction torque and drag.
 
@@ -18,7 +18,7 @@ Build the project in phases while keeping the numerical kernel in C++, and the o
 
 ## Current Phase
 
-Phase 11 currently implements the Phase 10 infrastructure plus:
+Phase 14 currently implements the Phase 10 infrastructure plus:
 
 - trajectory validation from MD, inclination, and azimuth
 - approximate trajectory geometry by balanced-tangent integration
@@ -43,14 +43,17 @@ Phase 11 currently implements the Phase 10 infrastructure plus:
 - reduced rotational torque integration using `mu * N * r`
 - separation between pipe-body drag/torque and detailed centralizer drag/torque contributions
 - explicit body-vs-centralizer torque partition in JSON/CLI outputs
-- reduced centralizer tangential friction direction obtained by rotating the local bow-resultant radial direction by 90 degrees in the local `n-b` plane
+- contact-informed reduced centralizer tangential law that blends the local bow-resultant radial direction with the local contact direction before rotating by 90 degrees in the local `n-b` plane
 - explicit body torque profile, centralizer torque profile, body axial-friction profile, centralizer axial-friction profile, and reduced tangential-friction vector profile
-- iterative coupling between the selected axial profile, the vector lateral/contact solve, and the reduced T&D post-processing
+- reduced axial-tangential friction-budget coupling inside the centralizer torque model, so tangential demand can reduce the remaining axial centralizer friction capacity
+- reduced torsional-load accumulation plus a GJ-based twist indicator profile built from body + centralizer torque contributions
+- carried reduced torsional state now fed into a shared reduced local tangential-state layer, with `slip_indicator`, bounded mobilization, traction-indicator proxy, and reduced regime classification before the body and centralizer tangential laws are applied
+- iterative coupling between the selected axial profile, the vector lateral/contact solve, and the reduced T&D/torsional post-processing, with convergence checked on axial-profile, torque-profile, and carried torsional-load updates
 - hookload estimates for run in and pull out, plus a reduced surface-torque estimate
 - canonical benchmark YAML cases for vertical, deviated, symmetric-centralizer, symmetry-breaking, and constitutive/friction sensitivity studies
 - a benchmark-suite runner with case checks, cross-case comparisons, and JSON summaries
 - reduced bow-spring calibration utilities from force-deflection pairs or reduced nominal force points
-- output traceability for resolved centralizer parameters, convergence criteria, and final coupling update magnitude
+- output traceability for resolved centralizer parameters, convergence criteria, final coupling update magnitudes, and per-placement centralizer torque breakdown
 
 ## Validation Status
 
@@ -74,7 +77,7 @@ What is still not validated:
 
 ## Hypotheses And Limitations
 
-The Phase 11 baseline is intentionally limited:
+The Phase 14 baseline is intentionally limited:
 
 - survey-derived coordinates remain approximate and are not a survey-processing reference implementation
 - the column response is quasi-static and reduced to two transverse displacement components in the local normal/binormal plane
@@ -91,10 +94,13 @@ The Phase 11 baseline is intentionally limited:
 - axial drag uses reduced `mu * N` propagation with operation-dependent sign conventions:
   run in/slackoff subtracts `mu * N` from the local hookload increment, while pull out/pickup adds `mu * N`
 - pipe-body torque uses reduced `mu * N_body * r_body`
-- centralizer tangential friction uses a reduced local tangential direction `t_hat = rot90(R_bow / |R_bow|)` in the local `n-b` plane when `|R_bow| > 0`
-- centralizer axial friction and tangential torque currently reuse the same reduced running/restoring-force ratio, but they are tracked separately for future calibration
+- centralizer tangential friction uses a reduced local tangential direction `t_hat = rot90(r_eff)` in the local `n-b` plane, where `r_eff` blends the bow-resultant radial direction with the local contact direction
+- centralizer tangential magnitude uses the projected contact-normal proxy `N_proj = max(0, R_bow . r_eff)` rather than only `|R_bow|`
+- centralizer axial friction and tangential torque each use an explicit reduced force ratio when provided, or a shared running/restoring-force-ratio fallback when not yet calibrated separately
+- reduced centralizer axial and tangential demands share a combined friction-budget cap, so the model can represent first-order competition between axial drag and tangential torque without a full 3D friction law
+- the carried reduced torsional state now feeds a shared reduced local tangential-state layer with `slip_indicator = |twist_rate| r`, `mobilization = slip_indicator / (1 + slip_indicator)`, and a bounded traction-indicator proxy before the body and centralizer tangential laws are applied; pipe-body axial drag still remains reduced `mu * N_body`
 - centralizer torque remains reduced and is accumulated as the sum of local tangential-force magnitudes times an effective contact radius
-- torque remains reduced and does not yet use full tangential vector friction/contact mechanics, torsional structural feedback, or a bow-by-bow dynamic/contact solve
+- torque remains reduced and does not yet use full tangential vector friction/contact mechanics or a bow-by-bow dynamic/contact solve; it now propagates through a reduced torsional-load/twist state, but still not through a full torsional structural solve
 
 Use these outputs as structured engineering scaffolding with traceable validation checks, not as final design predictions.
 
@@ -110,7 +116,10 @@ Use these outputs as structured engineering scaffolding with traceable validatio
 - Phase 8: vector local-frame structural/contact baseline with two transverse DOFs per node and vector normal reactions
 - Phase 9: detailed bow-spring centralizer geometry, bow-by-bow nonlinear reduced forces, vector bow resultants, and centralizer-aware reduced torque contributions
 - Phase 10: benchmark suite, reduced calibration utilities, output traceability, and validation-oriented regression checks
-- Phase 11: reduced vector centralizer torque from bow-resultant direction, explicit body-vs-centralizer torque partition, and tangential-friction vector traceability
+- Phase 11: reduced vector centralizer torque from bow resultant plus local contact direction, explicit body-vs-centralizer torque partition, and a carried reduced torsional-load/twist state
+- Phase 12: strengthened contact-informed centralizer tangential law and reduced torque feedback into the coupling loop
+- Phase 13: torsional reduced state fed back into both centralizer and body tangential laws
+- Phase 14: shared reduced local tangential-state layer with mobilization, traction-indicator proxy, regime traceability, and separated body-vs-centralizer local tangential outputs
 
 See [docs/roadmap.md](/c:/Users/heitor.matos/Downloads/CS_complete_v214-20260303T125845Z-1-001/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
 
@@ -145,7 +154,7 @@ Print a case summary:
 
 ```bash
 centraltd summary examples/minimal_case.yaml
-centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase11_stub.json
+centraltd run-stub examples/minimal_case.yaml --output examples/minimal_case_phase14_stub.json
 centraltd benchmark-suite benchmarks/suites/phase10_validation.yaml --output-dir build/benchmarks/phase10
 centraltd calibrate-bow-spring benchmarks/calibration/force_deflection_pairs.yaml --output build/calibration/force_pairs.json
 ```

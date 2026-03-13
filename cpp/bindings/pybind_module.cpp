@@ -107,7 +107,9 @@ PYBIND11_MODULE(_core, m) {
       .def("outer_radius_m", &centraltd::StringSection::outer_radius_m)
       .def("cross_sectional_area_m2", &centraltd::StringSection::cross_sectional_area_m2)
       .def("second_moment_of_area_m4", &centraltd::StringSection::second_moment_of_area_m4)
+      .def("polar_moment_of_area_m4", &centraltd::StringSection::polar_moment_of_area_m4)
       .def("bending_stiffness_n_m2", &centraltd::StringSection::bending_stiffness_n_m2)
+      .def("torsional_stiffness_n_m2", &centraltd::StringSection::torsional_stiffness_n_m2)
       .def("displaced_area_m2", &centraltd::StringSection::displaced_area_m2)
       .def(
           "buoyancy_force_n_per_m",
@@ -141,6 +143,10 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "nominal_running_force_n",
           &centraltd::CentralizerSpec::nominal_running_force_n)
+      .def_readwrite("axial_force_ratio", &centraltd::CentralizerSpec::axial_force_ratio)
+      .def_readwrite(
+          "tangential_force_ratio",
+          &centraltd::CentralizerSpec::tangential_force_ratio)
       .def_readwrite("blade_power_law_k", &centraltd::CentralizerSpec::blade_power_law_k)
       .def_readwrite("blade_power_law_p", &centraltd::CentralizerSpec::blade_power_law_p)
       .def_readwrite(
@@ -241,6 +247,9 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "coupling_tolerance_n",
           &centraltd::DiscretizationSettings::coupling_tolerance_n)
+      .def_readwrite(
+          "coupling_torque_tolerance_n_m",
+          &centraltd::DiscretizationSettings::coupling_torque_tolerance_n_m)
       .def_readwrite(
           "relaxation_factor",
           &centraltd::DiscretizationSettings::relaxation_factor)
@@ -439,6 +448,12 @@ PYBIND11_MODULE(_core, m) {
           "bow_resultant_magnitude_n",
           &centraltd::MechanicalSegmentResult::bow_resultant_magnitude_n)
       .def_readwrite(
+          "centralizer_effective_radial_direction_normal",
+          &centraltd::MechanicalSegmentResult::centralizer_effective_radial_direction_normal)
+      .def_readwrite(
+          "centralizer_effective_radial_direction_binormal",
+          &centraltd::MechanicalSegmentResult::centralizer_effective_radial_direction_binormal)
+      .def_readwrite(
           "centralizer_tangential_direction_normal",
           &centraltd::MechanicalSegmentResult::centralizer_tangential_direction_normal)
       .def_readwrite(
@@ -454,6 +469,12 @@ PYBIND11_MODULE(_core, m) {
           "centralizer_tangential_friction_vector_magnitude_n",
           &centraltd::MechanicalSegmentResult::centralizer_tangential_friction_vector_magnitude_n)
       .def_readwrite(
+          "centralizer_projected_contact_normal_n",
+          &centraltd::MechanicalSegmentResult::centralizer_projected_contact_normal_n)
+      .def_readwrite(
+          "centralizer_friction_interaction_scale",
+          &centraltd::MechanicalSegmentResult::centralizer_friction_interaction_scale)
+      .def_readwrite(
           "centralizer_axial_friction_n",
           &centraltd::MechanicalSegmentResult::centralizer_axial_friction_n)
       .def_readwrite(
@@ -465,6 +486,12 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "centralizer_effective_contact_radius_m",
           &centraltd::MechanicalSegmentResult::centralizer_effective_contact_radius_m)
+      .def_readwrite(
+          "centralizer_torque_details",
+          &centraltd::MechanicalSegmentResult::centralizer_torque_details)
+      .def_readwrite(
+          "centralizer_torque_status",
+          &centraltd::MechanicalSegmentResult::centralizer_torque_status)
       .def_readwrite(
           "nearby_centralizer_count",
           &centraltd::MechanicalSegmentResult::nearby_centralizer_count)
@@ -664,6 +691,47 @@ PYBIND11_MODULE(_core, m) {
           "body_tangential_friction_n",
           &centraltd::BodyFrictionPoint::body_tangential_friction_n);
 
+  py::class_<centraltd::CentralizerTangentialDirectionPoint>(
+      m,
+      "CentralizerTangentialDirectionPoint")
+      .def(py::init<>())
+      .def_readwrite(
+          "measured_depth_m",
+          &centraltd::CentralizerTangentialDirectionPoint::measured_depth_m)
+      .def_readwrite(
+          "reduced_torsional_load_n_m",
+          &centraltd::CentralizerTangentialDirectionPoint::reduced_torsional_load_n_m)
+      .def_readwrite(
+          "reduced_twist_rate_rad_per_m",
+          &centraltd::CentralizerTangentialDirectionPoint::reduced_twist_rate_rad_per_m)
+      .def_readwrite(
+          "torsional_slip_indicator",
+          &centraltd::CentralizerTangentialDirectionPoint::torsional_slip_indicator)
+      .def_readwrite(
+          "torsional_tangential_demand_factor",
+          &centraltd::CentralizerTangentialDirectionPoint::torsional_tangential_demand_factor)
+      .def_readwrite(
+          "effective_radial_direction_normal",
+          &centraltd::CentralizerTangentialDirectionPoint::effective_radial_direction_normal)
+      .def_readwrite(
+          "effective_radial_direction_binormal",
+          &centraltd::CentralizerTangentialDirectionPoint::effective_radial_direction_binormal)
+      .def_readwrite(
+          "tangential_direction_normal",
+          &centraltd::CentralizerTangentialDirectionPoint::tangential_direction_normal)
+      .def_readwrite(
+          "tangential_direction_binormal",
+          &centraltd::CentralizerTangentialDirectionPoint::tangential_direction_binormal)
+      .def_readwrite(
+          "projected_contact_normal_n",
+          &centraltd::CentralizerTangentialDirectionPoint::projected_contact_normal_n)
+      .def_readwrite(
+          "friction_interaction_scale",
+          &centraltd::CentralizerTangentialDirectionPoint::friction_interaction_scale)
+      .def_readwrite(
+          "status",
+          &centraltd::CentralizerTangentialDirectionPoint::status);
+
   py::class_<centraltd::CentralizerTangentialVectorContribution>(
       m,
       "CentralizerTangentialVectorContribution")
@@ -671,6 +739,12 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite(
           "measured_depth_m",
           &centraltd::CentralizerTangentialVectorContribution::measured_depth_m)
+      .def_readwrite(
+          "effective_radial_direction_normal",
+          &centraltd::CentralizerTangentialVectorContribution::effective_radial_direction_normal)
+      .def_readwrite(
+          "effective_radial_direction_binormal",
+          &centraltd::CentralizerTangentialVectorContribution::effective_radial_direction_binormal)
       .def_readwrite(
           "tangential_direction_normal",
           &centraltd::CentralizerTangentialVectorContribution::tangential_direction_normal)
@@ -684,8 +758,321 @@ PYBIND11_MODULE(_core, m) {
           "tangential_friction_binormal_n",
           &centraltd::CentralizerTangentialVectorContribution::tangential_friction_binormal_n)
       .def_readwrite(
+          "projected_contact_normal_n",
+          &centraltd::CentralizerTangentialVectorContribution::projected_contact_normal_n)
+      .def_readwrite(
+          "friction_interaction_scale",
+          &centraltd::CentralizerTangentialVectorContribution::friction_interaction_scale)
+      .def_readwrite(
           "tangential_friction_magnitude_n",
-          &centraltd::CentralizerTangentialVectorContribution::tangential_friction_magnitude_n);
+          &centraltd::CentralizerTangentialVectorContribution::tangential_friction_magnitude_n)
+      .def_readwrite(
+          "status",
+          &centraltd::CentralizerTangentialVectorContribution::status);
+
+  py::class_<centraltd::CentralizerPlacementTorqueContribution>(
+      m,
+      "CentralizerPlacementTorqueContribution")
+      .def(py::init<>())
+      .def_readwrite(
+          "source_name",
+          &centraltd::CentralizerPlacementTorqueContribution::source_name)
+      .def_readwrite(
+          "placement_measured_depth_m",
+          &centraltd::CentralizerPlacementTorqueContribution::placement_measured_depth_m)
+      .def_readwrite(
+          "effective_contact_radius_m",
+          &centraltd::CentralizerPlacementTorqueContribution::effective_contact_radius_m)
+      .def_readwrite(
+          "axial_force_ratio",
+          &centraltd::CentralizerPlacementTorqueContribution::axial_force_ratio)
+      .def_readwrite(
+          "tangential_force_ratio",
+          &centraltd::CentralizerPlacementTorqueContribution::tangential_force_ratio)
+      .def_readwrite(
+          "reduced_torsional_load_n_m",
+          &centraltd::CentralizerPlacementTorqueContribution::reduced_torsional_load_n_m)
+      .def_readwrite(
+          "reduced_twist_rate_rad_per_m",
+          &centraltd::CentralizerPlacementTorqueContribution::reduced_twist_rate_rad_per_m)
+      .def_readwrite(
+          "torsional_slip_indicator",
+          &centraltd::CentralizerPlacementTorqueContribution::torsional_slip_indicator)
+      .def_readwrite(
+          "torsional_tangential_demand_factor",
+          &centraltd::CentralizerPlacementTorqueContribution::torsional_tangential_demand_factor)
+      .def_readwrite(
+          "bow_resultant_vector_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::bow_resultant_vector_n_b)
+      .def_readwrite(
+          "bow_resultant_magnitude_n",
+          &centraltd::CentralizerPlacementTorqueContribution::bow_resultant_magnitude_n)
+      .def_readwrite(
+          "radial_direction_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::radial_direction_n_b)
+      .def_readwrite(
+          "local_contact_direction_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::local_contact_direction_n_b)
+      .def_readwrite(
+          "effective_radial_direction_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::effective_radial_direction_n_b)
+      .def_readwrite(
+          "tangential_direction_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::tangential_direction_n_b)
+      .def_readwrite(
+          "tangential_friction_vector_n_b",
+          &centraltd::CentralizerPlacementTorqueContribution::tangential_friction_vector_n_b)
+      .def_readwrite(
+          "tangential_friction_vector_magnitude_n",
+          &centraltd::CentralizerPlacementTorqueContribution::tangential_friction_vector_magnitude_n)
+      .def_readwrite(
+          "local_contact_weight",
+          &centraltd::CentralizerPlacementTorqueContribution::local_contact_weight)
+      .def_readwrite(
+          "direction_alignment_cosine",
+          &centraltd::CentralizerPlacementTorqueContribution::direction_alignment_cosine)
+      .def_readwrite(
+          "projected_contact_normal_n",
+          &centraltd::CentralizerPlacementTorqueContribution::projected_contact_normal_n)
+      .def_readwrite(
+          "friction_interaction_scale",
+          &centraltd::CentralizerPlacementTorqueContribution::friction_interaction_scale)
+      .def_readwrite(
+          "axial_friction_n",
+          &centraltd::CentralizerPlacementTorqueContribution::axial_friction_n)
+      .def_readwrite(
+          "tangential_friction_n",
+          &centraltd::CentralizerPlacementTorqueContribution::tangential_friction_n)
+      .def_readwrite(
+          "torque_increment_n_m",
+          &centraltd::CentralizerPlacementTorqueContribution::torque_increment_n_m)
+      .def_readwrite(
+          "active",
+          &centraltd::CentralizerPlacementTorqueContribution::active)
+      .def_readwrite(
+          "status",
+          &centraltd::CentralizerPlacementTorqueContribution::status);
+
+  py::class_<centraltd::CentralizerPlacementTorquePoint>(
+      m,
+      "CentralizerPlacementTorquePoint")
+      .def(py::init<>())
+      .def_readwrite("source_name", &centraltd::CentralizerPlacementTorquePoint::source_name)
+      .def_readwrite(
+          "placement_measured_depth_m",
+          &centraltd::CentralizerPlacementTorquePoint::placement_measured_depth_m)
+      .def_readwrite(
+          "measured_depth_m",
+          &centraltd::CentralizerPlacementTorquePoint::measured_depth_m)
+      .def_readwrite(
+          "effective_contact_radius_m",
+          &centraltd::CentralizerPlacementTorquePoint::effective_contact_radius_m)
+      .def_readwrite(
+          "axial_force_ratio",
+          &centraltd::CentralizerPlacementTorquePoint::axial_force_ratio)
+      .def_readwrite(
+          "tangential_force_ratio",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_force_ratio)
+      .def_readwrite(
+          "reduced_torsional_load_n_m",
+          &centraltd::CentralizerPlacementTorquePoint::reduced_torsional_load_n_m)
+      .def_readwrite(
+          "reduced_twist_rate_rad_per_m",
+          &centraltd::CentralizerPlacementTorquePoint::reduced_twist_rate_rad_per_m)
+      .def_readwrite(
+          "torsional_slip_indicator",
+          &centraltd::CentralizerPlacementTorquePoint::torsional_slip_indicator)
+      .def_readwrite(
+          "torsional_tangential_demand_factor",
+          &centraltd::CentralizerPlacementTorquePoint::torsional_tangential_demand_factor)
+      .def_readwrite(
+          "bow_resultant_normal_n",
+          &centraltd::CentralizerPlacementTorquePoint::bow_resultant_normal_n)
+      .def_readwrite(
+          "bow_resultant_binormal_n",
+          &centraltd::CentralizerPlacementTorquePoint::bow_resultant_binormal_n)
+      .def_readwrite(
+          "bow_resultant_magnitude_n",
+          &centraltd::CentralizerPlacementTorquePoint::bow_resultant_magnitude_n)
+      .def_readwrite(
+          "local_contact_direction_normal",
+          &centraltd::CentralizerPlacementTorquePoint::local_contact_direction_normal)
+      .def_readwrite(
+          "local_contact_direction_binormal",
+          &centraltd::CentralizerPlacementTorquePoint::local_contact_direction_binormal)
+      .def_readwrite(
+          "effective_radial_direction_normal",
+          &centraltd::CentralizerPlacementTorquePoint::effective_radial_direction_normal)
+      .def_readwrite(
+          "effective_radial_direction_binormal",
+          &centraltd::CentralizerPlacementTorquePoint::effective_radial_direction_binormal)
+      .def_readwrite(
+          "tangential_direction_normal",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_direction_normal)
+      .def_readwrite(
+          "tangential_direction_binormal",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_direction_binormal)
+      .def_readwrite(
+          "tangential_friction_normal_n",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_friction_normal_n)
+      .def_readwrite(
+          "tangential_friction_binormal_n",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_friction_binormal_n)
+      .def_readwrite(
+          "tangential_friction_magnitude_n",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_friction_magnitude_n)
+      .def_readwrite(
+          "local_contact_weight",
+          &centraltd::CentralizerPlacementTorquePoint::local_contact_weight)
+      .def_readwrite(
+          "direction_alignment_cosine",
+          &centraltd::CentralizerPlacementTorquePoint::direction_alignment_cosine)
+      .def_readwrite(
+          "projected_contact_normal_n",
+          &centraltd::CentralizerPlacementTorquePoint::projected_contact_normal_n)
+      .def_readwrite(
+          "friction_interaction_scale",
+          &centraltd::CentralizerPlacementTorquePoint::friction_interaction_scale)
+      .def_readwrite(
+          "axial_friction_n",
+          &centraltd::CentralizerPlacementTorquePoint::axial_friction_n)
+      .def_readwrite(
+          "tangential_friction_n",
+          &centraltd::CentralizerPlacementTorquePoint::tangential_friction_n)
+      .def_readwrite(
+          "local_torque_increment_n_m",
+          &centraltd::CentralizerPlacementTorquePoint::local_torque_increment_n_m)
+      .def_readwrite(
+          "cumulative_torque_n_m",
+          &centraltd::CentralizerPlacementTorquePoint::cumulative_torque_n_m)
+      .def_readwrite("status", &centraltd::CentralizerPlacementTorquePoint::status);
+
+  py::class_<centraltd::LocalTangentialInteractionStatePoint>(
+      m,
+      "LocalTangentialInteractionStatePoint")
+      .def(py::init<>())
+      .def_readwrite(
+          "measured_depth_m",
+          &centraltd::LocalTangentialInteractionStatePoint::measured_depth_m)
+      .def_readwrite(
+          "reduced_torsional_load_n_m",
+          &centraltd::LocalTangentialInteractionStatePoint::reduced_torsional_load_n_m)
+      .def_readwrite(
+          "reduced_twist_rate_rad_per_m",
+          &centraltd::LocalTangentialInteractionStatePoint::reduced_twist_rate_rad_per_m)
+      .def_readwrite(
+          "body_effective_contact_radius_m",
+          &centraltd::LocalTangentialInteractionStatePoint::body_effective_contact_radius_m)
+      .def_readwrite(
+          "body_torsional_slip_indicator",
+          &centraltd::LocalTangentialInteractionStatePoint::body_torsional_slip_indicator)
+      .def_readwrite(
+          "body_tangential_mobilization",
+          &centraltd::LocalTangentialInteractionStatePoint::body_tangential_mobilization)
+      .def_readwrite(
+          "body_tangential_demand_factor",
+          &centraltd::LocalTangentialInteractionStatePoint::body_tangential_demand_factor)
+      .def_readwrite(
+          "body_tangential_traction_indicator",
+          &centraltd::LocalTangentialInteractionStatePoint::body_tangential_traction_indicator)
+      .def_readwrite(
+          "body_tangential_regime",
+          &centraltd::LocalTangentialInteractionStatePoint::body_tangential_regime)
+      .def_readwrite(
+          "body_feedback_applied",
+          &centraltd::LocalTangentialInteractionStatePoint::body_feedback_applied)
+      .def_readwrite(
+          "centralizer_effective_contact_radius_m",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_effective_contact_radius_m)
+      .def_readwrite(
+          "centralizer_torsional_slip_indicator",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_torsional_slip_indicator)
+      .def_readwrite(
+          "centralizer_tangential_mobilization",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_tangential_mobilization)
+      .def_readwrite(
+          "centralizer_tangential_demand_factor",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_tangential_demand_factor)
+      .def_readwrite(
+          "centralizer_tangential_traction_indicator",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_tangential_traction_indicator)
+      .def_readwrite(
+          "centralizer_tangential_regime",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_tangential_regime)
+      .def_readwrite(
+          "centralizer_feedback_applied",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_feedback_applied)
+      .def_readwrite(
+          "local_tangential_mobilization",
+          &centraltd::LocalTangentialInteractionStatePoint::local_tangential_mobilization)
+      .def_readwrite(
+          "local_tangential_traction_indicator",
+          &centraltd::LocalTangentialInteractionStatePoint::local_tangential_traction_indicator)
+      .def_readwrite(
+          "local_tangential_regime",
+          &centraltd::LocalTangentialInteractionStatePoint::local_tangential_regime)
+      .def_readwrite(
+          "body_status",
+          &centraltd::LocalTangentialInteractionStatePoint::body_status)
+      .def_readwrite(
+          "centralizer_status",
+          &centraltd::LocalTangentialInteractionStatePoint::centralizer_status)
+      .def_readwrite(
+          "status",
+          &centraltd::LocalTangentialInteractionStatePoint::status);
+
+  py::class_<centraltd::ReducedTorqueAccumulationPoint>(m, "ReducedTorqueAccumulationPoint")
+      .def(py::init<>())
+      .def_readwrite(
+          "measured_depth_m",
+          &centraltd::ReducedTorqueAccumulationPoint::measured_depth_m)
+      .def_readwrite(
+          "body_torque_increment_n_m",
+          &centraltd::ReducedTorqueAccumulationPoint::body_torque_increment_n_m)
+      .def_readwrite(
+          "centralizer_torque_increment_n_m",
+          &centraltd::ReducedTorqueAccumulationPoint::centralizer_torque_increment_n_m)
+      .def_readwrite(
+          "local_torque_increment_n_m",
+          &centraltd::ReducedTorqueAccumulationPoint::local_torque_increment_n_m)
+      .def_readwrite(
+          "raw_cumulative_torque_n_m",
+          &centraltd::ReducedTorqueAccumulationPoint::raw_cumulative_torque_n_m)
+      .def_readwrite(
+          "carried_torsional_load_n_m",
+          &centraltd::ReducedTorqueAccumulationPoint::carried_torsional_load_n_m)
+      .def_readwrite("status", &centraltd::ReducedTorqueAccumulationPoint::status);
+
+  py::class_<centraltd::TorsionalStatePoint>(m, "TorsionalStatePoint")
+      .def(py::init<>())
+      .def_readwrite("measured_depth_m", &centraltd::TorsionalStatePoint::measured_depth_m)
+      .def_readwrite("segment_length_m", &centraltd::TorsionalStatePoint::segment_length_m)
+      .def_readwrite("section_name", &centraltd::TorsionalStatePoint::section_name)
+      .def_readwrite(
+          "body_torque_increment_n_m",
+          &centraltd::TorsionalStatePoint::body_torque_increment_n_m)
+      .def_readwrite(
+          "centralizer_torque_increment_n_m",
+          &centraltd::TorsionalStatePoint::centralizer_torque_increment_n_m)
+      .def_readwrite(
+          "local_torque_increment_n_m",
+          &centraltd::TorsionalStatePoint::local_torque_increment_n_m)
+      .def_readwrite(
+          "reduced_torsional_load_n_m",
+          &centraltd::TorsionalStatePoint::reduced_torsional_load_n_m)
+      .def_readwrite(
+          "section_torsional_stiffness_n_m2",
+          &centraltd::TorsionalStatePoint::section_torsional_stiffness_n_m2)
+      .def_readwrite(
+          "reduced_twist_rate_rad_per_m",
+          &centraltd::TorsionalStatePoint::reduced_twist_rate_rad_per_m)
+      .def_readwrite(
+          "reduced_twist_increment_rad",
+          &centraltd::TorsionalStatePoint::reduced_twist_increment_rad)
+      .def_readwrite(
+          "cumulative_reduced_twist_rad",
+          &centraltd::TorsionalStatePoint::cumulative_reduced_twist_rad)
+      .def_readwrite("status", &centraltd::TorsionalStatePoint::status);
 
   py::class_<centraltd::CentralizerTorquePartitionSummary>(m, "TorquePartitionSummary")
       .def(py::init<>())
@@ -778,11 +1165,26 @@ PYBIND11_MODULE(_core, m) {
           "centralizer_tangential_friction_profile",
           &centraltd::SolverStubResult::centralizer_tangential_friction_profile)
       .def_readwrite(
+          "centralizer_tangential_direction_profile",
+          &centraltd::SolverStubResult::centralizer_tangential_direction_profile)
+      .def_readwrite(
           "centralizer_tangential_friction_vector_profile",
           &centraltd::SolverStubResult::centralizer_tangential_friction_vector_profile)
       .def_readwrite(
           "centralizer_torque_profile",
           &centraltd::SolverStubResult::centralizer_torque_profile)
+      .def_readwrite(
+          "centralizer_torque_breakdown_profile",
+          &centraltd::SolverStubResult::centralizer_torque_breakdown_profile)
+      .def_readwrite(
+          "local_tangential_interaction_state",
+          &centraltd::SolverStubResult::local_tangential_interaction_state)
+      .def_readwrite(
+          "reduced_torque_accumulation_profile",
+          &centraltd::SolverStubResult::reduced_torque_accumulation_profile)
+      .def_readwrite(
+          "torsional_state_profile",
+          &centraltd::SolverStubResult::torsional_state_profile)
       .def_readwrite("coupling_status", &centraltd::SolverStubResult::coupling_status)
       .def_readwrite(
           "coupling_iterations",
@@ -794,8 +1196,17 @@ PYBIND11_MODULE(_core, m) {
           "coupling_final_max_torque_update_n_m",
           &centraltd::SolverStubResult::coupling_final_max_torque_update_n_m)
       .def_readwrite(
+          "coupling_final_max_torsional_load_update_n_m",
+          &centraltd::SolverStubResult::coupling_final_max_torsional_load_update_n_m)
+      .def_readwrite(
           "coupling_converged",
           &centraltd::SolverStubResult::coupling_converged)
+      .def_readwrite(
+          "torque_feedback_mode",
+          &centraltd::SolverStubResult::torque_feedback_mode)
+      .def_readwrite(
+          "torsional_feedback_status",
+          &centraltd::SolverStubResult::torsional_feedback_status)
       .def_readwrite(
           "converged_axial_profile",
           &centraltd::SolverStubResult::converged_axial_profile)

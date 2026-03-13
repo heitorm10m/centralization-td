@@ -25,8 +25,8 @@ Estas instrucoes valem para o nucleo C++ do solver.
 ## Regras numericas
 
 - Preferir algoritmos robustos e simples antes de aumentar a sofisticacao.
-- Em problemas iterativos, documentar residual, criterio de convergencia e limites de iteracao.
-- Em contato penalizado, documentar o significado fisico da penalidade e onde ela entra no residual.
+- Em problemas iterativos, documentar residual ou metrica equivalente de atualizacao, criterio de convergencia e limites de iteracao.
+- Em contato penalizado, documentar o significado fisico da penalidade, sua unidade efetiva e onde ela entra no residual ou na atualizacao.
 - Ao converter grandezas entre frame local e coordenadas transformadas, documentar a convencao de transformacao e evitar misturar componentes vetoriais com magnitudes agregadas sem rotulo claro.
 - Em outputs, distinguir claramente vetor, magnitude, `estimate`, `reaction` e `force`.
 - Manter distinguiveis, no codigo e nos outputs, as contribuicoes do corpo da coluna e dos centralizadores para contato, atrito e torque.
@@ -36,6 +36,6 @@ Estas instrucoes valem para o nucleo C++ do solver.
 ## Direcao tecnica do solver
 
 A direcao do solver e:
-modelo vetorial reduzido no frame local -> bow-by-bow -> torque tangencial vetorial -> calibracao/validacao.
+modelo vetorial reduzido no frame local -> bow-by-bow -> torque tangencial vetorial -> refinamento de contato/friccao no anular -> calibracao/validacao.
 
 Nao voltar a novas simplificacoes escalares como direcao principal.

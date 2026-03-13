@@ -90,6 +90,9 @@ void DiscretizationSettings::validate() const {
   if (coupling_tolerance_n <= 0.0) {
     throw ValidationError("Coupling tolerance must be positive.");
   }
+  if (coupling_torque_tolerance_n_m <= 0.0) {
+    throw ValidationError("Coupling torque tolerance must be positive.");
+  }
   if (relaxation_factor <= 0.0 || relaxation_factor > 1.0) {
     throw ValidationError("Relaxation factor must stay within (0, 1].");
   }
@@ -132,6 +135,8 @@ std::vector<CentralizerPlacement> expand_centralizer_placements(
           spec.resolved_support_outer_diameter_m(),
           spec.nominal_restoring_force_n,
           spec.nominal_running_force_n,
+          spec.axial_force_ratio,
+          spec.tangential_force_ratio,
           spec.number_of_bows,
           spec.angular_orientation_reference_deg,
           spec.inner_clearance_to_pipe_m,

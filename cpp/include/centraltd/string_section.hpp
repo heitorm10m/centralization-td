@@ -22,7 +22,9 @@ struct StringSection {
   Scalar outer_radius_m() const noexcept;
   Scalar cross_sectional_area_m2() const noexcept;
   Scalar second_moment_of_area_m4() const noexcept;
+  Scalar polar_moment_of_area_m4() const noexcept;
   Scalar bending_stiffness_n_m2() const noexcept;
+  Scalar torsional_stiffness_n_m2() const noexcept;
   Scalar displaced_area_m2() const noexcept;
   Scalar buoyancy_force_n_per_m(Scalar fluid_density_kg_per_m3) const noexcept;
   Scalar effective_line_weight_n_per_m(Scalar fluid_density_kg_per_m3) const noexcept;

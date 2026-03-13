@@ -17,15 +17,15 @@ O projeto ja evoluiu por fases:
 - acoplamento iterativo entre lateral/contact e T&D
 - solver vetorial reduzido no frame local da trajetoria
 - centralizador bow-spring detalhado, bow por bow, com resultante vetorial e contribuicao reduzida ao torque
-- infraestrutura reduzida de benchmark, calibracao e validacao para o modelo atual
+- benchmark suite e calibracao interna inicial para o modelo atual
 
 A direcao final desejada e:
 
 1. solver estrutural vetorial no frame local, cada vez mais proximo de um stiff-string 3D fisicamente defensavel
 2. centralizador bow-spring detalhado, bow por bow, integrado de forma cada vez mais direta ao solver
 3. torque tangencial vetorial derivado da resultante dos bows e da interacao com o anular
-4. validacao, calibracao e comparacao com literatura, benchmarks e casos de referencia
-5. maturidade gradual em direcao a um software tecnico robusto, sem fingir equivalencia precoce a produto comercial
+4. refinamento progressivo de contato e friccao no anular, ainda dentro da direcao vetorial/local-frame
+5. calibracao, validacao e comparacao com literatura, benchmarks e casos de referencia, sem claims prematuros
 
 ## Visao de longo prazo do produto
 
@@ -64,7 +64,7 @@ Esses recursos devem ser adicionados somente depois que a fisica principal estiv
 
 - Nao rebaixar o projeto para novas simplificacoes escalares se a etapa atual ja exige formulacao vetorial.
 - A transicao prioritaria do projeto e:
-  solver vetorial 3D reduzido -> bow-by-bow -> torque tangencial vetorial -> calibracao/validacao.
+  solver vetorial reduzido no frame local -> bow-by-bow -> torque tangencial vetorial -> refinamento de contato/friccao no anular -> calibracao/validacao.
 - O modelo atual nao deve ser descrito como stiff-string 3D completo enquanto nao houver 6 GDL por no, contato/friccao 3D completos e modelagem final de centralizador.
 - Em fases reduzidas, preferir honestidade fisica a aparencia de completude.
 - Quando uma grandeza ainda nao puder ser defendida fisicamente, preferir `null`, `status` explicito ou nomenclatura provisoria a inventar valor.

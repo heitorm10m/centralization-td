@@ -149,8 +149,6 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
             node_solution.lateral_displacement_normal_m,
             node_solution.lateral_displacement_binormal_m,
         });
-    const auto centralizer_torque_contribution =
-        evaluate_centralizer_torque_contribution(bow_segment_result);
     const Vector2 total_normal_reaction_vector_n_b{
         bow_segment_result.bow_resultant_vector_n_b[0] +
             node_solution.body_normal_reaction_vector_n_b[0],
@@ -166,6 +164,11 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
           total_normal_reaction_vector_n_b[1] / total_normal_reaction_magnitude_n,
       };
     }
+    const auto centralizer_torque_contribution =
+        evaluate_centralizer_torque_contribution(
+            bow_segment_result,
+            contact_direction_n_b,
+            node_solution.body_normal_reaction_vector_n_b);
 
     MechanicalSegmentResult segment_result;
     segment_result.measured_depth_start_m = segment.measured_depth_start_m;
@@ -270,6 +273,10 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
         bow_segment_result.bow_resultant_vector_n_b[1];
     segment_result.bow_resultant_magnitude_n =
         bow_segment_result.bow_resultant_magnitude_n;
+    segment_result.centralizer_effective_radial_direction_normal =
+        centralizer_torque_contribution.effective_radial_direction_n_b[0];
+    segment_result.centralizer_effective_radial_direction_binormal =
+        centralizer_torque_contribution.effective_radial_direction_n_b[1];
     segment_result.centralizer_tangential_direction_normal =
         centralizer_torque_contribution.tangential_direction_n_b[0];
     segment_result.centralizer_tangential_direction_binormal =
@@ -280,6 +287,10 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
         centralizer_torque_contribution.tangential_friction_vector_n_b[1];
     segment_result.centralizer_tangential_friction_vector_magnitude_n =
         centralizer_torque_contribution.tangential_friction_vector_magnitude_n;
+    segment_result.centralizer_projected_contact_normal_n =
+        centralizer_torque_contribution.projected_contact_normal_n;
+    segment_result.centralizer_friction_interaction_scale =
+        centralizer_torque_contribution.friction_interaction_scale;
     segment_result.centralizer_axial_friction_n =
         centralizer_torque_contribution.axial_friction_n;
     segment_result.centralizer_tangential_friction_n =
@@ -288,6 +299,10 @@ MechanicalSolverResult run_mechanical_with_axial_profile(
         centralizer_torque_contribution.torque_increment_n_m;
     segment_result.centralizer_effective_contact_radius_m =
         centralizer_torque_contribution.effective_contact_radius_m;
+    segment_result.centralizer_torque_details =
+        centralizer_torque_contribution.placement_contributions;
+    segment_result.centralizer_torque_status =
+        centralizer_torque_contribution.status;
     segment_result.nearby_centralizer_count = node.nearby_centralizer_count;
     segment_result.contact_iteration_count = global_solution.iteration_count;
     segment_result.support_in_contact =

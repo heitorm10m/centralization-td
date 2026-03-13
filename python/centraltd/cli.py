@@ -85,7 +85,26 @@ def run_stub(
         "Coupling final max torque update [N.m]: "
         f"{payload['coupling_final_max_torque_update_n_m']:.6f}"
     )
+    typer.echo(
+        "Coupling final max torsional-load update [N.m]: "
+        f"{payload['coupling_final_max_torsional_load_update_n_m']:.6f}"
+    )
     typer.echo(f"Coupling converged: {payload['coupling_converged']}")
+    typer.echo(f"Torque feedback mode: {payload['torque_feedback_mode']}")
+    typer.echo(f"Torsional feedback status: {payload['torsional_feedback_status']}")
+    if payload.get("local_tangential_interaction_state"):
+        typer.echo(
+            "Max local tangential mobilization [-]: "
+            f"{max(point['local_tangential_mobilization'] for point in payload['local_tangential_interaction_state']):.6f}"
+        )
+        typer.echo(
+            "Max local body tangential-demand factor [-]: "
+            f"{max(point['body_tangential_demand_factor'] for point in payload['local_tangential_interaction_state']):.6f}"
+        )
+        typer.echo(
+            "Max local centralizer tangential-demand factor [-]: "
+            f"{max(point['centralizer_tangential_demand_factor'] for point in payload['local_tangential_interaction_state']):.6f}"
+        )
     typer.echo(
         "Top effective axial load [N]: "
         f"{payload['mechanical_summary']['top_effective_axial_load_n']:.2f}"
@@ -135,7 +154,7 @@ def run_stub(
         typer.echo(f"Surface torque [N.m]: {payload['estimated_surface_torque_n_m']:.2f}")
     if payload["updated_estimated_surface_torque_n_m"] is not None:
         typer.echo(
-            "Updated surface torque with detailed centralizers [N.m]: "
+            "Updated surface torque with reduced torsional state [N.m]: "
             f"{payload['updated_estimated_surface_torque_n_m']:.2f}"
         )
     typer.echo(
