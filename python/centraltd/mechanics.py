@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+import numpy as np
+
 from .bow_spring import (
     BowForceDetailModel,
     evaluate_bow_spring_segment_result,
@@ -677,13 +679,13 @@ def build_global_node_inputs(
 def assemble_global_linear_system(
     nodes: list[GlobalNodeInputModel],
     contact_states: list[GlobalContactStateModel],
-) -> tuple[list[list[float]], list[float]]:
+) -> tuple[np.ndarray, np.ndarray]:
     if len(nodes) != len(contact_states):
         raise ValueError("Vector global assembly requires one contact state per node.")
 
     dof_count = 2 * len(nodes)
-    stiffness_matrix = [[0.0 for _ in range(dof_count)] for _ in range(dof_count)]
-    load_vector = [0.0 for _ in range(dof_count)]
+    stiffness_matrix = np.zeros((dof_count, dof_count), dtype=float)
+    load_vector = np.zeros(dof_count, dtype=float)
 
     def dof_index(node_index: int, component_index: int) -> int:
         return (2 * node_index) + component_index
@@ -782,55 +784,17 @@ def assemble_global_linear_system(
 
 
 def _solve_dense_linear_system(
-    matrix: list[list[float]],
-    rhs: list[float],
+    matrix: np.ndarray | list[list[float]],
+    rhs: np.ndarray | list[float],
 ) -> list[float]:
-    dimension = len(rhs)
-    working_matrix = [row[:] for row in matrix]
-    working_rhs = list(rhs)
-
-    for pivot_index in range(dimension):
-        best_row_index = pivot_index
-        best_pivot_value = abs(working_matrix[pivot_index][pivot_index])
-        for row_index in range(pivot_index + 1, dimension):
-            candidate_value = abs(working_matrix[row_index][pivot_index])
-            if candidate_value > best_pivot_value:
-                best_pivot_value = candidate_value
-                best_row_index = row_index
-
-        if best_pivot_value <= 1.0e-12:
-            raise ValueError("Vector global solver encountered a singular linear system.")
-
-        if best_row_index != pivot_index:
-            working_matrix[pivot_index], working_matrix[best_row_index] = (
-                working_matrix[best_row_index],
-                working_matrix[pivot_index],
-            )
-            working_rhs[pivot_index], working_rhs[best_row_index] = (
-                working_rhs[best_row_index],
-                working_rhs[pivot_index],
-            )
-
-        pivot_value = working_matrix[pivot_index][pivot_index]
-        for row_index in range(pivot_index + 1, dimension):
-            elimination_factor = working_matrix[row_index][pivot_index] / pivot_value
-            if elimination_factor == 0.0:
-                continue
-
-            for column_index in range(pivot_index, dimension):
-                working_matrix[row_index][column_index] -= (
-                    elimination_factor * working_matrix[pivot_index][column_index]
-                )
-            working_rhs[row_index] -= elimination_factor * working_rhs[pivot_index]
-
-    solution = [0.0 for _ in range(dimension)]
-    for row_index in range(dimension - 1, -1, -1):
-        back_substitution_sum = working_rhs[row_index]
-        for column_index in range(row_index + 1, dimension):
-            back_substitution_sum -= working_matrix[row_index][column_index] * solution[column_index]
-        solution[row_index] = back_substitution_sum / working_matrix[row_index][row_index]
-
-    return solution
+    try:
+        solution = np.linalg.solve(
+            np.asarray(matrix, dtype=float),
+            np.asarray(rhs, dtype=float),
+        )
+    except np.linalg.LinAlgError as exc:
+        raise ValueError("NumPy global solver encountered a singular linear system.") from exc
+    return solution.tolist()
 
 
 def _select_contact_direction(

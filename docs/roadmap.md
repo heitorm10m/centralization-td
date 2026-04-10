@@ -4,7 +4,7 @@
 
 - Repository scaffold at the workspace root
 - Devcontainer and onboarding instructions
-- CMake build for C++ core, pybind11 bindings, and smoke tests
+- Python package build, NumPy dependency, and smoke tests
 - Python package with YAML I/O and Typer CLI
 - Deterministic solver stub with explicit TODOs
 
@@ -153,7 +153,7 @@ What now exists:
 - A benchmark-suite runner that executes the YAML cases, writes per-case JSON payloads, and evaluates cross-case validation rules
 - Reduced bow-spring calibration utilities for fitting `k` and `p` from force-deflection pairs or reduced nominal force points
 - Traceability fields in the JSON payload for resolved centralizer parameters, convergence criteria, and final coupling update magnitude
-- Additional C++ and Python regression coverage for friction trend, bow-stiffness trend, calibration recovery, benchmark execution, CLI, and JSON outputs
+- Additional Python regression coverage for friction trend, bow-stiffness trend, calibration recovery, benchmark execution, CLI, and JSON outputs
 
 Explicit limitations of Phase 10:
 

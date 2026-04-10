@@ -1,17 +1,16 @@
 # centraltd
 
-Phase 14 reduced local tangential-state consolidation for a scientific project focused on casing centralization and torque & drag, using a hybrid C++ + Python architecture. The repository keeps the Phase 9 reduced vector local-frame solver core, the Phase 10 benchmark/calibration infrastructure, and now carries a shared reduced local tangential-state layer on top of the bow-resultant, body-vs-centralizer torque partition, and reduced torsional-load/twist baseline.
+Phase 14 reduced local tangential-state consolidation for a scientific project focused on casing centralization and torque & drag, using a Python + NumPy architecture. The repository keeps the reduced vector local-frame solver, the Phase 10 benchmark/calibration infrastructure, and now carries a shared reduced local tangential-state layer on top of the bow-resultant, body-vs-centralizer torque partition, and reduced torsional-load/twist baseline.
 
 It still does not implement a commercial stiff-string solver, a full 6-DOF beam/contact formulation, or fully nonlinear 3D contact/friction torque and drag.
 
 ## Objective
 
-Build the project in phases while keeping the numerical kernel in C++, and the orchestration, YAML I/O, CLI, plotting, and reporting in Python.
+Build the project in phases with a Python numerical kernel, using optimized numerical libraries such as NumPy for dense linear algebra while keeping YAML I/O, CLI, plotting, and reporting in Python.
 
 ## Architecture
 
-- `cpp/`: C++20 core for trajectory geometry, section properties, discretization, centralizer support, lateral equilibrium, contact model, mechanical baseline, pybind11 bindings, and C++ smoke tests.
-- `python/`: Python package for YAML loading, validation, fallback mechanics, CLI orchestration, and packaging.
+- `python/`: Python package for YAML loading, validation, NumPy-backed mechanics, CLI orchestration, calibration, benchmarking, plotting helpers, and packaging.
 - `configs/`: Reusable YAML fragments for wells, strings, and centralizers.
 - `examples/`: Case manifests that reference reusable config fragments.
 - `docs/`: Roadmap and engineering notes.
@@ -106,7 +105,7 @@ Use these outputs as structured engineering scaffolding with traceable validatio
 
 ## Roadmap By Phase
 
-- Phase 1: scaffold, environment, build, bindings, YAML schema, CLI, smoke tests, and docs
+- Phase 1: scaffold, environment, Python package, YAML schema, CLI, smoke tests, and docs
 - Phase 2: trajectory geometry utilities, richer tubular and centralizer data, YAML validation, and geometric baseline reporting
 - Phase 3: first simplified stiff-string mechanical baseline with discretization, buoyancy, bending stiffness, and curvature loading
 - Phase 4: first local lateral-equilibrium baseline with contact iteration, standoff estimate, and normal reaction estimate
@@ -121,22 +120,11 @@ Use these outputs as structured engineering scaffolding with traceable validatio
 - Phase 13: torsional reduced state fed back into both centralizer and body tangential laws
 - Phase 14: shared reduced local tangential-state layer with mobilization, traction-indicator proxy, regime traceability, and separated body-vs-centralizer local tangential outputs
 
-See [docs/roadmap.md](/c:/Users/heitor.matos/Downloads/CS_complete_v214-20260303T125845Z-1-001/centralization-td/docs/roadmap.md) for the detailed phase breakdown.
+See [docs/roadmap.md](docs/roadmap.md) for the detailed phase breakdown.
 
 ## Devcontainer
 
-Open the repository in VS Code and choose `Reopen in Container`. The devcontainer installs `clang`, `cmake`, `ninja`, `gdb`, `lldb`, `python3-dev`, `pip`, and `git`, then installs the Python package in editable mode.
-
-## Build
-
-Configure and build the C++ targets from the repository root:
-
-```bash
-cmake -S . -B build -G Ninja -DCENTRALTD_BUILD_TESTS=ON
-cmake --build build
-```
-
-This builds the `centraltd_core` library, the pybind11 module target, and the C++ smoke test.
+Open the repository in VS Code and choose `Reopen in Container`. The devcontainer installs Python, pip, Git, and the editable Python package with development dependencies.
 
 ## Python Package
 
@@ -146,7 +134,7 @@ Install the Python package in editable mode from the repository root:
 python -m pip install -e python[dev]
 ```
 
-The package uses `scikit-build-core` and the top-level CMake project to compile the extension module when build dependencies are available.
+The package uses a pure-Python packaging path with NumPy-backed numerical routines; no native project build step is required.
 
 ## CLI
 
@@ -161,13 +149,7 @@ centraltd calibrate-bow-spring benchmarks/calibration/force_deflection_pairs.yam
 
 ## Tests
 
-Run the C++ smoke test:
-
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-Run the Python tests:
+Run the Python test suite:
 
 ```bash
 pytest

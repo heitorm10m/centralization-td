@@ -68,7 +68,7 @@ def test_run_stub_writes_json_output(tmp_path: Path) -> None:
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["status"] == "phase14-vector-local-tangential-torque-coupled-baseline"
-    assert payload["backend"] in {"cpp", "python-fallback"}
+    assert payload["backend"] == "python-numpy"
     assert payload["operation_mode"] == "run_in"
     assert payload["validation_status"] == "phase10-benchmark-calibration-infrastructure"
     assert payload["trajectory_summary"]["point_count"] == 5

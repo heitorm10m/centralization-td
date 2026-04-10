@@ -8,7 +8,7 @@ Este repositorio implementa um software cientifico de centralizacao de casing e 
 
 O projeto ja evoluiu por fases:
 
-- bootstrap e build hibrido C++ + Python
+- bootstrap Python com rotinas numericas apoiadas por NumPy
 - geometria 3D aproximada da trajetoria e modelo de dados
 - baseline mecanico com `EI`, peso submerso e curvatura
 - contato local simplificado
@@ -48,7 +48,7 @@ Esses recursos devem ser adicionados somente depois que a fisica principal estiv
 
 ## Regras permanentes de arquitetura
 
-- Nucleo numerico em C++.
+- Nucleo numerico em Python, usando bibliotecas otimizadas como NumPy quando houver ganho claro.
 - Interface, runner, CLI, YAML I/O e pos-processamento em Python.
 - Unidades internas sempre em SI.
 - Nao hardcodar casos de poco, strings ou layouts de centralizadores dentro do solver.
@@ -74,7 +74,7 @@ Esses recursos devem ser adicionados somente depois que a fisica principal estiv
 ## Regras de implementacao
 
 - Antes de implementar, inspecionar a arquitetura existente.
-- Preservar build, bindings, testes e CLI.
+- Preservar empacotamento Python, testes e CLI.
 - Fazer mudancas pequenas e coerentes.
 - Criar novos arquivos quando necessario em vez de inflar arquivos antigos.
 - Atualizar README e roadmap quando a arquitetura fisica ou o contrato do solver mudar.
@@ -83,11 +83,8 @@ Esses recursos devem ser adicionados somente depois que a fisica principal estiv
 
 ## Criterios minimos antes de encerrar uma fase
 
-- build C++ passa
-- bindings `pybind11` passam
 - pacote Python instala
 - `pytest` passa
-- `ctest` passa
 - CLI `summary` funciona
 - CLI `run-stub` funciona
 - documentacao da fase foi atualizada

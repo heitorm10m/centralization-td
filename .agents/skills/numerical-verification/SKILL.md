@@ -13,7 +13,7 @@ Verify numerical robustness and consistency after solver-side changes.
 2. Check dimensional consistency.
 3. Check sign conventions.
 4. Check residual definitions, convergence criteria, and iteration caps for affected iterative paths.
-5. Run targeted C++ and Python tests.
+5. Run targeted Python tests.
 6. Run CLI smoke validation.
 7. Summarize what changed, what passed, and what remains uncertain.
 
@@ -22,5 +22,5 @@ Verify numerical robustness and consistency after solver-side changes.
 - dimensional consistency checked
 - convergence behavior checked for affected iterative paths
 - relevant tests updated
-- build/ctest/pytest/CLI pass
+- pytest/CLI pass
 - uncertainties are explicitly listed

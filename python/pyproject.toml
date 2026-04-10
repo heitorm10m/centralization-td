@@ -1,9 +1,9 @@
 [build-system]
 requires = [
-  "pybind11>=2.13.6",
-  "scikit-build-core>=0.10"
+  "setuptools>=69",
+  "wheel"
 ]
-build-backend = "scikit_build_core.build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "centraltd"
@@ -12,6 +12,7 @@ description = "Python orchestration layer for centralization and torque & drag e
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "numpy>=1.26",
   "PyYAML>=6.0",
   "typer>=0.12"
 ]
@@ -24,8 +25,6 @@ dev = [
 [project.scripts]
 centraltd = "centraltd.cli:main"
 
-[tool.scikit-build]
-cmake.source-dir = ".."
-cmake.build-type = "Release"
-wheel.packages = ["centraltd"]
+[tool.setuptools.packages.find]
+where = ["."]
 

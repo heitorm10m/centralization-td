@@ -31,11 +31,6 @@ from .torque_drag import (
     TorquePointModel,
 )
 
-try:
-    from . import _core as cpp_core  # type: ignore[attr-defined]
-except ImportError:
-    cpp_core = None
-
 
 PHASE14_WARNINGS = [
     "Phase 14 trajectory coordinates are still approximated by balanced-tangent integration of MD, inclination, and azimuth.",
@@ -68,80 +63,6 @@ PHASE11_TODOS = [
 
 PHASE10_VALIDATION_STATUS = "phase10-benchmark-calibration-infrastructure"
 GLOBAL_SOLVER_UPDATE_TOLERANCE_M = 1.0e-8
-
-
-def _core_supports_phase14() -> bool:
-    if cpp_core is None:
-        return False
-    try:
-        solver_input = cpp_core.SolverStubInput()
-        result = cpp_core.SolverStubResult()
-        summary = cpp_core.MechanicalSummary()
-        settings = cpp_core.DiscretizationSettings()
-        segment = cpp_core.MechanicalSegmentResult()
-        centralizer = cpp_core.CentralizerSpec()
-        local_tangential_state = cpp_core.LocalTangentialInteractionStatePoint()
-    except Exception:
-        return False
-    return all(
-        hasattr(instance, attribute)
-        for instance, attribute in (
-            (solver_input, "fluid_density_kg_per_m3"),
-            (solver_input, "discretization_settings"),
-            (solver_input, "operation_mode"),
-            (solver_input, "reference_hole_diameter_m"),
-            (result, "minimum_standoff_estimate"),
-            (result, "hookload_run_in_n"),
-            (result, "torque_profile"),
-            (result, "body_torque_profile"),
-            (result, "body_axial_friction_profile"),
-            (result, "centralizer_tangential_direction_profile"),
-            (result, "centralizer_tangential_friction_vector_profile"),
-            (result, "torque_partition_summary"),
-            (result, "centralizer_model_status"),
-            (result, "centralizer_torque_profile"),
-            (result, "centralizer_torque_breakdown_profile"),
-            (result, "local_tangential_interaction_state"),
-            (result, "reduced_torque_accumulation_profile"),
-            (result, "torsional_state_profile"),
-            (result, "coupling_status"),
-            (result, "coupling_final_max_profile_update_n"),
-            (result, "coupling_final_max_torque_update_n_m"),
-            (result, "coupling_final_max_torsional_load_update_n_m"),
-            (result, "torque_feedback_mode"),
-            (result, "torsional_feedback_status"),
-            (result, "converged_axial_profile"),
-            (local_tangential_state, "body_tangential_mobilization"),
-            (local_tangential_state, "body_tangential_traction_indicator"),
-            (local_tangential_state, "body_tangential_regime"),
-            (local_tangential_state, "centralizer_tangential_mobilization"),
-            (local_tangential_state, "centralizer_tangential_traction_indicator"),
-            (local_tangential_state, "centralizer_tangential_regime"),
-            (local_tangential_state, "local_tangential_mobilization"),
-            (local_tangential_state, "local_tangential_traction_indicator"),
-            (local_tangential_state, "local_tangential_regime"),
-            (summary, "maximum_normal_reaction_estimate_n"),
-            (summary, "global_solver_iteration_count"),
-            (segment, "contact_state"),
-            (segment, "bow_force_details"),
-            (segment, "centralizer_torque_increment_n_m"),
-            (segment, "centralizer_tangential_friction_normal_n"),
-            (segment, "centralizer_effective_radial_direction_normal"),
-            (segment, "centralizer_projected_contact_normal_n"),
-            (segment, "centralizer_friction_interaction_scale"),
-            (segment, "centralizer_torque_details"),
-            (centralizer, "axial_force_ratio"),
-            (centralizer, "tangential_force_ratio"),
-            (settings, "target_segment_length_m"),
-            (settings, "global_solver_max_iterations"),
-            (settings, "contact_penalty_scale"),
-            (settings, "coupling_max_iterations"),
-            (settings, "coupling_tolerance_n"),
-            (settings, "coupling_torque_tolerance_n_m"),
-            (settings, "relaxation_factor"),
-            (settings, "frame_method"),
-        )
-    )
 
 
 def load_case(case_path: str | Path) -> LoadedCase:
@@ -1025,80 +946,7 @@ def format_case_summary(loaded_case: LoadedCase) -> str:
     return "\n".join(lines)
 
 
-def _build_cpp_input(loaded_case: LoadedCase) -> Any:
-    points = []
-    for node in loaded_case.trajectory_nodes():
-        cpp_point = cpp_core.WellTrajectoryPoint()
-        cpp_point.measured_depth_m = node.measured_depth_m
-        cpp_point.inclination_rad = node.inclination_rad
-        cpp_point.azimuth_rad = node.azimuth_rad
-        cpp_point.tvd_m = node.tvd_m
-        cpp_point.northing_m = node.northing_m
-        cpp_point.easting_m = node.easting_m
-        points.append(cpp_point)
-
-    well = cpp_core.WellTrajectory(points)
-
-    sections = []
-    for section in loaded_case.string.sections:
-        cpp_section = cpp_core.StringSection()
-        cpp_section.name = section.name
-        cpp_section.md_start_m = section.md_start_m
-        cpp_section.md_end_m = section.md_end_m
-        cpp_section.outer_diameter_m = section.outer_diameter_m
-        cpp_section.inner_diameter_m = section.inner_diameter_m
-        cpp_section.linear_weight_n_per_m = section.linear_weight_n_per_m
-        cpp_section.young_modulus_pa = section.young_modulus_pa
-        cpp_section.shear_modulus_pa = section.shear_modulus_pa
-        cpp_section.density_kg_per_m3 = section.density_kg_per_m3
-        cpp_section.friction_coefficient = section.friction_coefficient
-        sections.append(cpp_section)
-
-    centralizers = []
-    for spec in loaded_case.centralizers.centralizers:
-        cpp_spec = cpp_core.CentralizerSpec()
-        cpp_spec.name = spec.name
-        cpp_spec.type = spec.type
-        cpp_spec.outer_diameter_m = spec.outer_diameter_m
-        cpp_spec.support_outer_diameter_m = spec.support_outer_diameter_m
-        cpp_spec.number_of_bows = spec.number_of_bows
-        cpp_spec.angular_orientation_reference_deg = spec.angular_orientation_reference_deg
-        cpp_spec.inner_clearance_to_pipe_m = spec.inner_clearance_to_pipe_m
-        cpp_spec.nominal_restoring_force_n = spec.nominal_restoring_force_n
-        cpp_spec.nominal_running_force_n = spec.nominal_running_force_n
-        cpp_spec.axial_force_ratio = spec.axial_force_ratio
-        cpp_spec.tangential_force_ratio = spec.tangential_force_ratio
-        cpp_spec.blade_power_law_k = spec.blade_power_law_k
-        cpp_spec.blade_power_law_p = spec.blade_power_law_p
-        cpp_spec.min_contact_diameter_m = spec.min_contact_diameter_m
-        cpp_spec.max_contact_diameter_m = spec.max_contact_diameter_m
-        cpp_spec.spacing_hint_m = spec.spacing_hint_m
-        cpp_spec.count_hint = spec.count_hint
-        cpp_spec.installation_md_m = list(spec.installation_md_m or [])
-        centralizers.append(cpp_spec)
-
-    settings = cpp_core.DiscretizationSettings()
-    settings.target_segment_length_m = loaded_case.discretization_step_m
-    settings.global_solver_max_iterations = loaded_case.global_solver_max_iterations
-    settings.contact_penalty_scale = loaded_case.contact_penalty_scale
-    settings.coupling_max_iterations = loaded_case.coupling_max_iterations
-    settings.coupling_tolerance_n = loaded_case.coupling_tolerance_n
-    settings.coupling_torque_tolerance_n_m = loaded_case.coupling_torque_tolerance_n_m
-    settings.relaxation_factor = loaded_case.relaxation_factor
-    settings.frame_method = loaded_case.frame_method
-
-    payload = cpp_core.SolverStubInput()
-    payload.well = well
-    payload.reference_hole_diameter_m = loaded_case.reference_hole_diameter_m
-    payload.fluid_density_kg_per_m3 = loaded_case.fluid_density_kg_per_m3
-    payload.discretization_settings = settings
-    payload.operation_mode = loaded_case.operation_mode
-    payload.string_sections = sections
-    payload.centralizers = centralizers
-    return payload
-
-
-def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
+def _mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
     trajectory_summary = loaded_case.trajectory_summary()
     string_summary = loaded_case.string_summary()
     section_summaries = loaded_case.section_summaries()
@@ -1112,7 +960,7 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
         )
 
     return {
-        "backend": "python-fallback",
+        "backend": "python-numpy",
         "status": "phase14-vector-local-tangential-torque-coupled-baseline",
         "message": (
             "Phase 14 reduced vector-frame torque and drag baseline with detailed bow-spring "
@@ -1230,90 +1078,6 @@ def _python_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
     }
 
 
-def _cpp_mechanical_result(loaded_case: LoadedCase) -> dict[str, Any]:
-    result = cpp_core.run_solver_stub(_build_cpp_input(loaded_case))
-    return {
-        "backend": "cpp",
-        "status": result.status,
-        "message": result.message,
-        "operation_mode": result.operation_mode,
-        "geometry_is_approximate": result.geometry_is_approximate,
-        "trajectory_summary": _trajectory_summary_to_dict(result.trajectory_summary),
-        "string_summary": _string_summary_to_dict(result.string_summary),
-        "centralizer_summary": _centralizer_summary_to_dict(result.centralizer_summary),
-        "mechanical_summary": _mechanical_summary_to_dict(result.mechanical_summary),
-        "section_summaries": _section_summaries_to_dict(list(result.section_summaries)),
-        "mechanical_profile": _mechanical_profile_to_dict(list(result.mechanical_profile)),
-        "estimated_hookload_n": result.estimated_hookload_n,
-        "hookload_run_in_n": result.hookload_run_in_n,
-        "hookload_pull_out_n": result.hookload_pull_out_n,
-        "drag_run_in_n": result.drag_run_in_n,
-        "drag_pull_out_n": result.drag_pull_out_n,
-        "axial_force_run_in_profile": _axial_force_profile_to_dict(list(result.axial_force_run_in_profile)),
-        "axial_force_pull_out_profile": _axial_force_profile_to_dict(list(result.axial_force_pull_out_profile)),
-        "torque_profile": _torque_profile_to_dict(list(result.torque_profile)),
-        "body_axial_friction_profile": _body_friction_profile_to_dict(
-            list(result.body_axial_friction_profile)
-        ),
-        "body_torque_profile": _torque_profile_to_dict(list(result.body_torque_profile)),
-        "centralizer_axial_friction_profile": _centralizer_friction_profile_to_dict(
-            list(result.centralizer_axial_friction_profile)
-        ),
-        "centralizer_tangential_friction_profile": _centralizer_friction_profile_to_dict(
-            list(result.centralizer_tangential_friction_profile)
-        ),
-        "centralizer_tangential_direction_profile": _centralizer_tangential_direction_profile_to_dict(
-            list(result.centralizer_tangential_direction_profile)
-        ),
-        "centralizer_tangential_friction_vector_profile": _centralizer_tangential_vector_profile_to_dict(
-            list(result.centralizer_tangential_friction_vector_profile)
-        ),
-        "centralizer_torque_profile": _torque_profile_to_dict(list(result.centralizer_torque_profile)),
-        "centralizer_torque_breakdown_profile": _centralizer_torque_breakdown_profile_to_dict(
-            list(result.centralizer_torque_breakdown_profile)
-        ),
-        "local_tangential_interaction_state": _local_tangential_interaction_state_to_dict(
-            list(result.local_tangential_interaction_state)
-        ),
-        "updated_body_torque_profile": _torque_profile_to_dict(list(result.body_torque_profile)),
-        "updated_centralizer_torque_profile": _torque_profile_to_dict(
-            list(result.centralizer_torque_profile)
-        ),
-        "reduced_torque_accumulation_profile": _reduced_torque_accumulation_profile_to_dict(
-            list(result.reduced_torque_accumulation_profile)
-        ),
-        "torsional_state_profile": _torsional_state_profile_to_dict(
-            list(result.torsional_state_profile)
-        ),
-        "coupling_status": result.coupling_status,
-        "coupling_iterations": result.coupling_iterations,
-        "coupling_final_max_profile_update_n": result.coupling_final_max_profile_update_n,
-        "coupling_final_max_torque_update_n_m": result.coupling_final_max_torque_update_n_m,
-        "coupling_final_max_torsional_load_update_n_m": (
-            result.coupling_final_max_torsional_load_update_n_m
-        ),
-        "coupling_converged": result.coupling_converged,
-        "torque_feedback_mode": result.torque_feedback_mode,
-        "torsional_feedback_status": result.torsional_feedback_status,
-        "converged_axial_profile": _axial_force_profile_to_dict(list(result.converged_axial_profile)),
-        "converged_normal_reaction_profile": _normal_reaction_profile_to_dict(
-            list(result.converged_normal_reaction_profile)
-        ),
-        "converged_torque_profile": _torque_profile_to_dict(list(result.converged_torque_profile)),
-        "estimated_surface_torque_n_m": result.estimated_surface_torque_n_m,
-        "minimum_standoff_estimate": result.minimum_standoff_estimate,
-        "minimum_nominal_radial_clearance_m": result.minimum_nominal_radial_clearance_m,
-        "contact_nodes": result.contact_nodes,
-        "torque_partition_summary": _torque_partition_summary_to_dict(result.torque_partition_summary),
-        "centralizer_model_status": result.centralizer_model_status,
-        "torque_and_drag_real_implemented": result.torque_and_drag_real_implemented,
-        "torque_and_drag_status": result.torque_and_drag_status,
-        "torque_drag_status": result.torque_drag_status,
-        "warnings": list(result.warnings),
-        "todos": list(result.todos),
-    }
-
-
 def _resolve_output_path(loaded_case: LoadedCase, output: str | Path | None) -> Path:
     if output is not None:
         return Path(output).resolve()
@@ -1327,7 +1091,7 @@ def run_stub_case(
     output: str | Path | None = None,
 ) -> tuple[LoadedCase, dict[str, Any], Path]:
     loaded_case = load_case_bundle(case_path)
-    result = _cpp_mechanical_result(loaded_case) if _core_supports_phase14() else _python_mechanical_result(loaded_case)
+    result = _mechanical_result(loaded_case)
     derived_profiles = _derived_profiles(result["mechanical_profile"])
 
     payload = {
