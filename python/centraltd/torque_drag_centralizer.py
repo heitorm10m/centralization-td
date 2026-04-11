@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
-from .local_tangential_model import (
+from .physics.friction import (
     LocalTangentialModelInputs,
     evaluate_local_tangential_state,
 )

@@ -4,7 +4,7 @@ from pathlib import Path
 import math
 from typing import Any
 
-from .bow_spring import (
+from .physics.bow_spring import (
     bow_force_magnitude_n,
     bow_reference_deflection_m,
     centralizer_axial_force_ratio,
@@ -14,9 +14,9 @@ from .bow_spring import (
     equivalent_bow_support_stiffness_n_per_m,
     resolved_blade_power_law_k,
 )
-from .io import load_case_bundle, write_json
-from .coupling import run_coupled_global_baseline
-from .mechanics import (
+from .io.io import load_case_bundle, write_json
+from .solver.coupling import run_coupled_global_baseline
+from .solver.mechanics import (
     MechanicalSegmentResultModel,
     MechanicalSummaryModel,
 )

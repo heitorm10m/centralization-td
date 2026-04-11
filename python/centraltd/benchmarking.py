@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from .io import read_yaml, write_json
+from .io.io import read_yaml, write_json
 from .models import ConfigError
 from .runner import run_stub_case
 

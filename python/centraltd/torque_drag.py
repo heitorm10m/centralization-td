@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
-from .mechanics import MechanicalSegmentResultModel
+from .solver.mechanics import MechanicalSegmentResultModel
 from .models import LoadedCase, StringSectionModel
 from .torque_drag_body import evaluate_body_torque_drag_contribution
 from .torque_drag_centralizer import (

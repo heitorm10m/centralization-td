@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from .benchmarking import format_benchmark_summary, run_benchmark_suite
-from .calibration import format_bow_spring_calibration_summary, run_bow_spring_calibration
+from .solver.calibration import format_bow_spring_calibration_summary, run_bow_spring_calibration
 from .models import ConfigError
 from .runner import format_case_summary, load_case, run_stub_case
 

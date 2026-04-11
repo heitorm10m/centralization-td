@@ -1,3 +1,25 @@
+"""
+Bow-spring centralizer physics.
+
+Reference: Dao et al. 2023, Geoenergy Science and Engineering 222, 211457
+
+Equations implemented in this module:
+  Eq. 1  — Restoring force as vector sum of blade forces
+  Eq. 4  — Blade force power law Fi = kblade * delta_i^p
+  Eq. 5  — Blade deflection geometry
+  Eq. 22 — Blade position vector (PENDING)
+  Eq. 23 — Blade radial contact force two-regime (PENDING)
+  Eq. 24 — Smoothed blade radial contact force (PENDING)
+  Eq. 25 — Axial friction scalar sum (PENDING)
+  Eq. 26 — Tangential friction vector resultant (PENDING)
+  Eq. 27 — Tangential friction force direction (PENDING)
+  Eq. 28 — Individual blade tangential friction (PENDING)
+  Eq. 29 — Full nodal force and moment per blade (PENDING)
+
+See CHANGELOG.md for implementation status of each equation.
+See DECISIONS.md for decisions about this module.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

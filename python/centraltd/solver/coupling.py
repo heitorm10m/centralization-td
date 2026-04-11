@@ -11,8 +11,8 @@ from .mechanics import (
     discretize_case,
     run_mechanical_with_axial_profile,
 )
-from .models import LoadedCase
-from .torque_drag import (
+from ..models import LoadedCase
+from ..torque_drag import (
     AxialForcePointModel,
     CentralizerFrictionPointModel,
     TorquePartitionSummaryModel,
@@ -20,7 +20,7 @@ from .torque_drag import (
     TorquePointModel,
     run_torque_drag_baseline,
 )
-from .torsional_reduced_model import (
+from ..physics.friction import (
     ReducedTorqueAccumulationPointModel,
     TorsionalStatePointModel,
     run_reduced_torsional_model,

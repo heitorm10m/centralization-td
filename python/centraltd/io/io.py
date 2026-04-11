@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from .models import (
+from ..models import (
     CaseDefinition,
     CentralizerConfigModel,
     ConfigError,

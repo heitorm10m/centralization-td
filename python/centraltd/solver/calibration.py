@@ -6,8 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from .io import read_yaml, write_json
-from .models import ConfigError
+from ..io.io import read_yaml, write_json
+from ..models import ConfigError
 
 
 def _expect_mapping(raw: Any, context: str) -> Mapping[str, Any]:
