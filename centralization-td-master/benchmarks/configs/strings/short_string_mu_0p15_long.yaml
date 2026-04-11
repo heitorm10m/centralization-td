@@ -1,0 +1,12 @@
+name: benchmark-short-string-mu-0p15-long
+sections:
+  - name: long-section
+    md_start_m: 0.0
+    md_end_m: 100.0
+    outer_diameter_m: 0.1778
+    inner_diameter_m: 0.1524
+    linear_weight_n_per_m: 700.0
+    young_modulus_pa: 2.07e+11
+    shear_modulus_pa: 8.0e+10
+    density_kg_per_m3: 7850.0
+    friction_coefficient: 0.15

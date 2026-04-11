@@ -1,0 +1,13 @@
+name: minimal-case
+well: ../configs/wells/example_well.yaml
+string: ../configs/strings/example_string.yaml
+centralizers: ../configs/centralizers/example_centralizer.yaml
+operation_mode: run_in
+discretization_step_m: 40.0
+global_solver_max_iterations: 8
+contact_penalty_scale: 25.0
+coupling_max_iterations: 6
+coupling_tolerance_n: 25.0
+relaxation_factor: 0.5
+frame_method: parallel-transport
+output_json: minimal_case_phase9_stub.json

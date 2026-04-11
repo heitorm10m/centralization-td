@@ -1,0 +1,12 @@
+name: benchmark-force-deflection-fit
+mode: force_deflection_pairs
+force_deflection_pairs:
+  - deflection_m: 0.001
+    force_n: 14.226235280311384
+  - deflection_m: 0.002
+    force_n: 33.83588043009805
+  - deflection_m: 0.004
+    force_n: 80.47573949970787
+  - deflection_m: 0.006
+    force_n: 133.59156881825956
+notes: Synthetic regression case generated from k = 80000 and p = 1.25.

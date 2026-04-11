@@ -1,0 +1,7 @@
+name: benchmark-nominal-force-fit
+mode: nominal_force_points
+nominal_restoring_force_n: 2400.0
+restoring_deflection_m: 0.012
+nominal_running_force_n: 1000.0
+running_deflection_m: 0.006
+notes: Reduced nominal-point fit using restoring and running force anchors.

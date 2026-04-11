@@ -1,0 +1,32 @@
+name: example-string
+sections:
+  - name: casing-top
+    md_start_m: 0.0
+    md_end_m: 650.0
+    outer_diameter_m: 0.1778
+    inner_diameter_m: 0.1524
+    linear_weight_n_per_m: 680.0
+    young_modulus_pa: 207000000000.0
+    shear_modulus_pa: 80000000000.0
+    density_kg_per_m3: 7850.0
+    friction_coefficient: 0.24
+  - name: casing-mid
+    md_start_m: 650.0
+    md_end_m: 1400.0
+    outer_diameter_m: 0.1778
+    inner_diameter_m: 0.1524
+    linear_weight_n_per_m: 700.0
+    young_modulus_pa: 207000000000.0
+    shear_modulus_pa: 80000000000.0
+    density_kg_per_m3: 7850.0
+    friction_coefficient: 0.26
+  - name: casing-bottom
+    md_start_m: 1400.0
+    md_end_m: 1950.0
+    outer_diameter_m: 0.1778
+    inner_diameter_m: 0.1524
+    linear_weight_n_per_m: 730.0
+    young_modulus_pa: 207000000000.0
+    shear_modulus_pa: 80000000000.0
+    density_kg_per_m3: 7850.0
+    friction_coefficient: 0.28

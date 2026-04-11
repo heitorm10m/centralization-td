@@ -1,0 +1,12 @@
+name: benchmark-sensitivity-p-high
+well: ../configs/wells/deviated_moderate_short.yaml
+string: ../configs/strings/short_string_mu_0p25.yaml
+centralizers: ../configs/centralizers/single_p_high.yaml
+operation_mode: run_in
+discretization_step_m: 5.0
+global_solver_max_iterations: 8
+contact_penalty_scale: 25.0
+coupling_max_iterations: 4
+coupling_tolerance_n: 10.0
+relaxation_factor: 0.5
+frame_method: parallel-transport

@@ -1,0 +1,29 @@
+name: example-centralizers
+centralizers:
+  - name: bow-spring-standard
+    type: bow-spring
+    outer_diameter_m: 0.210
+    number_of_bows: 6
+    angular_orientation_reference_deg: 0.0
+    inner_clearance_to_pipe_m: 0.0005
+    nominal_restoring_force_n: 1800.0
+    nominal_running_force_n: 900.0
+    blade_power_law_p: 1.15
+    spacing_hint_m: 25.0
+    count_hint: 18
+  - name: bow-spring-targeted
+    centralizer_type: bow-spring
+    support_outer_diameter_m: 0.208
+    number_of_bows: 7
+    angular_orientation_reference_deg: 15.0
+    inner_clearance_to_pipe_m: 0.0003
+    nominal_restoring_force_n: 2200.0
+    nominal_running_force_n: 1050.0
+    blade_power_law_p: 1.2
+    min_contact_diameter_m: 0.206
+    max_contact_diameter_m: 0.212
+    spacing_hint_m: 15.0
+    installation_md_m:
+      - 1500.0
+      - 1600.0
+      - 1700.0

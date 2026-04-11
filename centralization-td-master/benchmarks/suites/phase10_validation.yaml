@@ -1,0 +1,232 @@
+name: phase10-validation-benchmark-suite
+description: Canonical validation and sensitivity suite for the reduced vector local-frame solver, detailed bow-spring layer, and reduced centralizer torque partition.
+cases:
+  - id: vertical_simple
+    case: ../cases/vertical_simple.yaml
+    purpose: Verify the vertical no-contact baseline.
+    expected_bounds:
+      - metric: derived_metrics.maximum_normal_reaction_estimate_n
+        lower: 0.0
+        upper: 1.0e-9
+        rationale: The vertical benchmark should remain effectively contact free.
+      - metric: derived_metrics.maximum_eccentricity_estimate_m
+        lower: 0.0
+        upper: 1.0e-9
+      - metric: derived_metrics.hookload_differential_n
+        lower: 0.0
+        upper: 1.0e-9
+      - metric: derived_metrics.estimated_surface_torque_n_m
+        lower: 0.0
+        upper: 1.0e-9
+  - id: deviated_moderate
+    case: ../cases/deviated_moderate.yaml
+    purpose: Exercise moderate curvature without centralizers.
+    expected_bounds:
+      - metric: derived_metrics.maximum_equivalent_lateral_load_n_per_m
+        lower: 50.0
+        upper: 150.0
+      - metric: derived_metrics.maximum_eccentricity_estimate_m
+        lower: 0.001
+        upper: 0.25
+  - id: centralizer_symmetric
+    case: ../cases/centralizer_symmetric.yaml
+    purpose: Confirm that a symmetric centralizer layout can remain vector-resultant free under zero eccentricity.
+  - id: eccentricity_breaks_symmetry
+    case: ../cases/eccentricity_breaks_symmetry.yaml
+    purpose: Confirm that lateral eccentricity produces a non-zero bow resultant.
+  - id: sensitivity_mu_low
+    case: ../cases/sensitivity_mu_low.yaml
+    purpose: Lower friction benchmark for torque and hookload sensitivity.
+  - id: sensitivity_mu_high
+    case: ../cases/sensitivity_mu_high.yaml
+    purpose: Higher friction benchmark for torque and hookload sensitivity.
+  - id: sensitivity_bows_4
+    case: ../cases/sensitivity_bows_4.yaml
+    purpose: Four-bow reference case with explicit k.
+  - id: sensitivity_bows_8
+    case: ../cases/sensitivity_bows_8.yaml
+    purpose: Eight-bow reference case with explicit k.
+  - id: sensitivity_k_low
+    case: ../cases/sensitivity_k_low.yaml
+    purpose: Lower explicit bow stiffness case.
+  - id: sensitivity_k_high
+    case: ../cases/sensitivity_k_high.yaml
+    purpose: Higher explicit bow stiffness case.
+  - id: sensitivity_p_low
+    case: ../cases/sensitivity_p_low.yaml
+    purpose: Lower exponent sensitivity case.
+  - id: sensitivity_p_high
+    case: ../cases/sensitivity_p_high.yaml
+    purpose: Higher exponent sensitivity case.
+  - id: sensitivity_clearance_low
+    case: ../cases/sensitivity_clearance_low.yaml
+    purpose: Smaller inner clearance benchmark.
+  - id: sensitivity_clearance_high
+    case: ../cases/sensitivity_clearance_high.yaml
+    purpose: Larger inner clearance benchmark.
+  - id: sensitivity_torque_ratio_low
+    case: ../cases/sensitivity_torque_ratio_low.yaml
+    purpose: Lower explicit tangential centralizer-force ratio with axial ratio held fixed.
+  - id: sensitivity_torque_ratio_high
+    case: ../cases/sensitivity_torque_ratio_high.yaml
+    purpose: Higher explicit tangential centralizer-force ratio with axial ratio held fixed.
+  - id: sensitivity_torque_feedback_low
+    case: ../cases/sensitivity_torque_feedback_low.yaml
+    purpose: Lower tangential-demand case for the reduced axial-tangential centralizer friction budget.
+  - id: sensitivity_torque_feedback_high
+    case: ../cases/sensitivity_torque_feedback_high.yaml
+    purpose: Higher tangential-demand case that activates the reduced axial-tangential centralizer friction budget.
+validations:
+  - id: curvature-increases-lateral-severity
+    left_case: vertical_simple
+    right_case: deviated_moderate
+    metric: derived_metrics.maximum_equivalent_lateral_load_n_per_m
+    relation: gt
+    rationale: Increased curvature should increase the reduced lateral severity metric.
+  - id: curvature-increases-eccentricity
+    left_case: vertical_simple
+    right_case: deviated_moderate
+    metric: derived_metrics.maximum_eccentricity_estimate_m
+    relation: gt
+  - id: symmetric-case-resultant-is-near-zero
+    case: centralizer_symmetric
+    metric: derived_metrics.maximum_bow_resultant_magnitude_n
+    relation: le
+    threshold: 1.0e-9
+    rationale: A symmetric centralizer in a vertical benchmark should not create a vector resultant.
+  - id: eccentric-case-resultant-is-nonzero
+    case: eccentricity_breaks_symmetry
+    metric: derived_metrics.maximum_bow_resultant_magnitude_n
+    relation: gt
+    threshold: 1.0e-6
+    rationale: Eccentricity should break symmetry and produce a non-zero vector resultant.
+  - id: eccentric-case-increases-centralizer-torque
+    left_case: centralizer_symmetric
+    right_case: eccentricity_breaks_symmetry
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: A non-zero bow resultant should increase the reduced centralizer torque partition.
+  - id: eccentric-case-increases-centralizer-tangential-friction
+    left_case: centralizer_symmetric
+    right_case: eccentricity_breaks_symmetry
+    metric: derived_metrics.maximum_centralizer_tangential_friction_magnitude_n
+    relation: gt
+    rationale: The tangential force proxy should follow the symmetry-breaking bow resultant.
+  - id: higher-mu-increases-hookload-differential
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.hookload_differential_n
+    relation: gt
+  - id: higher-mu-increases-surface-torque
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.estimated_surface_torque_n_m
+    relation: gt
+  - id: more-bows-increase-reference-support-stiffness
+    left_case: sensitivity_bows_4
+    right_case: sensitivity_bows_8
+    metric: derived_metrics.maximum_reference_support_stiffness_n_per_m
+    relation: gt
+    rationale: With the same explicit k and p, more bows should increase the reduced reference support stiffness.
+  - id: higher-k-increases-reference-support-stiffness
+    left_case: sensitivity_k_low
+    right_case: sensitivity_k_high
+    metric: derived_metrics.maximum_reference_support_stiffness_n_per_m
+    relation: gt
+    rationale: Increasing explicit bow stiffness should increase the reduced reference support stiffness.
+  - id: lower-p-increases-force-at-10mm
+    left_case: sensitivity_p_high
+    right_case: sensitivity_p_low
+    metric: derived_metrics.maximum_force_per_bow_at_10mm_n
+    relation: gt
+    rationale: At the fixed 10 mm benchmark deflection and constant k, the lower exponent produces a larger reduced force.
+  - id: lower-clearance-increases-bow-resultant
+    left_case: sensitivity_clearance_high
+    right_case: sensitivity_clearance_low
+    metric: derived_metrics.maximum_bow_resultant_magnitude_n
+    relation: gt
+    rationale: Reducing inner clearance advances contact onset and should increase the reduced bow resultant.
+  - id: lower-clearance-increases-centralizer-surface-torque
+    left_case: sensitivity_clearance_high
+    right_case: sensitivity_clearance_low
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Earlier bow contact should also increase the reduced centralizer torque partition.
+  - id: higher-torque-ratio-increases-centralizer-surface-torque
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Increasing only the explicit tangential centralizer-force ratio should increase the reduced centralizer torque partition.
+  - id: higher-torque-ratio-increases-local-centralizer-torque
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_torque_increment_n_m
+    relation: gt
+    rationale: The local centralizer torque increment should scale with the explicit tangential force ratio when the bow resultant is already non-zero.
+  - id: higher-torque-ratio-increases-reduced-twist
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_cumulative_reduced_twist_rad
+    relation: gt
+    rationale: Stronger local centralizer torque demand should increase the reduced torsional twist indicator.
+  - id: higher-torque-ratio-increases-local-tangential-demand-factor
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_tangential_demand_factor
+    relation: gt
+    rationale: A stronger carried torsional state should now mobilize a larger local centralizer tangential-demand factor.
+  - id: higher-torque-ratio-increases-local-tangential-mobilization
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_local_tangential_mobilization
+    relation: gt
+    rationale: The stronger carried torsional state should increase the shared reduced local tangential mobilization state.
+  - id: higher-torque-ratio-increases-local-torsional-slip-indicator
+    left_case: sensitivity_torque_ratio_low
+    right_case: sensitivity_torque_ratio_high
+    metric: derived_metrics.maximum_centralizer_torsional_slip_indicator
+    relation: gt
+    rationale: The local reduced torsional slip indicator |twist_rate| * r_eff should grow with the stronger torque-ratio case.
+  - id: stronger-tangential-demand-still-increases-centralizer-surface-torque
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.estimated_centralizer_surface_torque_n_m
+    relation: gt
+    rationale: Even under the reduced friction budget, higher tangential demand should still raise the centralizer torque partition.
+  - id: stronger-tangential-demand-reduces-remaining-centralizer-axial-friction
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.centralizer_axial_friction_sum_n
+    relation: lt
+    rationale: Once the reduced axial-tangential friction budget is activated, higher tangential demand should reduce the remaining axial centralizer friction capacity.
+  - id: stronger-tangential-demand-lowers-friction-interaction-scale
+    left_case: sensitivity_torque_feedback_low
+    right_case: sensitivity_torque_feedback_high
+    metric: derived_metrics.minimum_centralizer_friction_interaction_scale
+    relation: lt
+    rationale: The interaction scale should drop below the low-demand case when the reduced friction budget becomes active.
+  - id: higher-mu-increases-reduced-torsional-load
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_reduced_torsional_load_n_m
+    relation: gt
+    rationale: Higher pipe-body friction should also increase the carried reduced torsional-load state.
+  - id: higher-mu-increases-body-surface-torque
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.estimated_body_surface_torque_n_m
+    relation: gt
+    rationale: Stronger pipe-body friction should still raise the separated reduced body torque partition.
+  - id: higher-mu-increases-local-body-tangential-demand-factor
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_body_tangential_demand_factor
+    relation: gt
+    rationale: The carried reduced torsional state should now also mobilize the local pipe-body tangential law.
+  - id: higher-mu-increases-local-body-tangential-mobilization
+    left_case: sensitivity_mu_low
+    right_case: sensitivity_mu_high
+    metric: derived_metrics.maximum_body_tangential_mobilization
+    relation: gt
+    rationale: The shared reduced local tangential state should show higher body mobilization in the higher-friction case.

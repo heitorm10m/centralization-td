@@ -1,0 +1,15 @@
+name: benchmark-single-clearance-low
+centralizers:
+  - name: clearance-low-centralizer
+    type: bow-spring
+    outer_diameter_m: 0.210
+    support_outer_diameter_m: 0.210
+    number_of_bows: 4
+    angular_orientation_reference_deg: 0.0
+    inner_clearance_to_pipe_m: 0.0005
+    nominal_restoring_force_n: 2400.0
+    nominal_running_force_n: 1000.0
+    blade_power_law_p: 1.5
+    spacing_hint_m: 20.0
+    installation_md_m:
+      - 25.0
