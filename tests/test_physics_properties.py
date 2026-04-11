@@ -11,6 +11,7 @@ Test data source: Dao et al. 2023, Table 1 and Table 2.
 import pytest
 import numpy as np
 
+from centraltd.physics.bow_spring import blade_deflection_geometry_m, blade_force_power_law_n
 from centraltd.physics.contact import smooth_heaviside
 
 
@@ -91,15 +92,37 @@ class TestBladeDeflection:
 
     def test_zero_deflection_when_centered(self):
         """When pipe is centered, all blades have same deflection. Eq. 5."""
-        pytest.skip("Implement when Eq. 5 geometry is in bow_spring.py")
+        ur_cent = np.array([0.0, 0.0])
+        d_max = CENTRALIZER_PARAMS["d_max_m"]
+        d_hole = OPEN_HOLE_PARAMS["d_hole_m"]
+        angles = np.linspace(0.0, 2.0 * np.pi, num=5, endpoint=False)
+
+        deflections = [
+            blade_deflection_geometry_m(ur_cent, d_max, d_hole, angle) for angle in angles
+        ]
+
+        assert deflections == pytest.approx([deflections[0]] * len(deflections))
+        assert deflections[0] == pytest.approx(max((d_max - d_hole) / 2.0, 0.0))
 
     def test_top_blade_loses_contact_in_horizontal(self):
         """In horizontal section, top blade deflection can reach zero. Eq. 5."""
-        pytest.skip("Implement when Eq. 5 geometry is in bow_spring.py")
+        ur_cent = np.array([0.003, 0.0])
+        d_max = CENTRALIZER_PARAMS["d_max_m"]
+        d_hole = OPEN_HOLE_PARAMS["d_hole_m"]
+
+        bottom_blade = blade_deflection_geometry_m(ur_cent, d_max, d_hole, 0.0)
+        top_blade = blade_deflection_geometry_m(ur_cent, d_max, d_hole, np.pi)
+
+        assert bottom_blade > 0.0
+        assert top_blade == 0.0
 
     def test_deflection_non_negative(self):
         """Blade deflection must never be negative (max with 0). Eq. 5."""
-        pytest.skip("Implement when Eq. 5 geometry is in bow_spring.py")
+        ur_cent = np.array([0.02, 0.0])
+        d_max = CENTRALIZER_PARAMS["d_max_m"]
+        d_hole = OPEN_HOLE_PARAMS["d_hole_m"]
+
+        assert blade_deflection_geometry_m(ur_cent, d_max, d_hole, np.pi) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -110,15 +133,18 @@ class TestBladeForceLaw:
 
     def test_linear_when_p_equals_one(self):
         """When p=1, force is linear in deflection. Eq. 4."""
-        pytest.skip("Implement when Eq. 4 is in bow_spring.py")
+        force = blade_force_power_law_n(0.01, 1000.0, 1.0)
+        assert force == pytest.approx(10.0)
 
     def test_zero_force_zero_deflection(self):
         """Zero deflection must produce zero force. Eq. 4."""
-        pytest.skip("Implement when Eq. 4 is in bow_spring.py")
+        assert blade_force_power_law_n(0.0, 1000.0, 1.17509) == 0.0
 
     def test_nonlinear_greater_stiffness_at_high_deflection(self):
         """For p>1, force increases faster at high deflection. Eq. 4."""
-        pytest.skip("Implement when Eq. 4 is in bow_spring.py")
+        force_low = blade_force_power_law_n(0.005, 1000.0, 2.0)
+        force_high = blade_force_power_law_n(0.01, 1000.0, 2.0)
+        assert force_high > (2.0 * force_low)
 
 
 # ---------------------------------------------------------------------------

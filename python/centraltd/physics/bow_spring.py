@@ -26,9 +26,80 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
+import numpy as np
+
+from .constants import DTYPE
+
 
 def _norm2(vector: tuple[float, float]) -> float:
     return math.sqrt((vector[0] ** 2) + (vector[1] ** 2))
+
+
+def blade_deflection_geometry_m(
+    ur_cent_n_b_m: tuple[float, float] | np.ndarray,
+    d_max_m: float,
+    d_hole_m: float,
+    alpha_i_rad: float,
+) -> float:
+    """
+    Eq. 5 from PHYSICS_REFERENCE.md.
+
+    delta_i = max(
+        Dmax / 2
+        - (
+            sqrt((Dhole / 2)^2 - (Ur,cent * sin(alpha_i))^2)
+            - Ur,cent * cos(alpha_i)
+        ),
+        0
+    )
+
+    The project reference differs from the user-provided inline formula,
+    so this implementation follows PHYSICS_REFERENCE.md as ground truth.
+    """
+    ur_cent_vector = np.asarray(ur_cent_n_b_m, dtype=DTYPE)
+    ur_cent_magnitude = DTYPE(np.sqrt(np.dot(ur_cent_vector, ur_cent_vector)))
+    half_d_max_m = DTYPE(d_max_m) / DTYPE(2.0)
+    half_d_hole_m = DTYPE(d_hole_m) / DTYPE(2.0)
+    alpha_i_rad = DTYPE(alpha_i_rad)
+
+    sin_alpha = DTYPE(np.sin(alpha_i_rad))
+    cos_alpha = DTYPE(np.cos(alpha_i_rad))
+
+    radicand = (half_d_hole_m * half_d_hole_m) - (
+        (ur_cent_magnitude * sin_alpha) * (ur_cent_magnitude * sin_alpha)
+    )
+    radicand = DTYPE(max(float(radicand), 0.0))
+
+    deformed_radius_m = DTYPE(np.sqrt(radicand)) - (ur_cent_magnitude * cos_alpha)
+    deflection_m = half_d_max_m - deformed_radius_m
+    if float(deflection_m) <= 0.0:
+        return 0.0
+    return float(DTYPE(deflection_m))
+
+
+def blade_force_power_law_n(
+    delta_i_m: float,
+    k_blade: float,
+    p: float,
+) -> float:
+    """
+    Eq. 4 from PHYSICS_REFERENCE.md.
+
+    F_i = k_blade * delta_i^p
+    """
+    delta_i_m = DTYPE(delta_i_m)
+    assert float(delta_i_m) >= 0.0, "Eq. 4 requires delta_i >= 0."
+
+    if float(delta_i_m) == 0.0:
+        return 0.0
+
+    k_blade = DTYPE(k_blade)
+    p = DTYPE(p)
+
+    if float(p) == 1.0:
+        return float(DTYPE(k_blade * delta_i_m))
+
+    return float(DTYPE(k_blade * np.power(delta_i_m, p)))
 
 
 @dataclass(slots=True)
@@ -159,8 +230,10 @@ def bow_force_magnitude_n(
 ) -> float:
     if deflection_m <= 0.0:
         return 0.0
-    return resolved_blade_power_law_k(placement, hole_radius_m) * (
-        deflection_m ** placement.blade_power_law_p
+    return blade_force_power_law_n(
+        deflection_m,
+        resolved_blade_power_law_k(placement, hole_radius_m),
+        placement.blade_power_law_p,
     )
 
 
